@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Stepwise design tokens — dark-first, premium.
+   Theme switches by setting  data-theme="light"  on <html>.
+   Default (:root) = dark, honoring the dark-first stance.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg:            #080a0f;
+  --bg-elevated:   #0d1017;
+  --surface:       #12161f;
+  --surface-2:     #191e29;
+  --surface-3:     #222937;
+  --border:        #222a38;
+  --border-strong: #313a4c;
+
+  /* Foreground */
+  --text:       #e7eaf1;
+  --text-muted: #98a1b3;
+  --text-faint: #616b7d;
+
+  /* Brand — indigo → violet */
+  --brand:        #7c6bf7;
+  --brand-strong: #9385ff;
+  --brand-fg:     #ffffff;
+  --brand-soft:   color-mix(in oklab, #7c6bf7 16%, transparent);
+  --ring:         #7c6bf7;
+
+  /* Gradient accents (hero, glows) */
+  --accent-cyan:  #35d6ee;
+  --accent-pink:  #f472b6;
+
+  /* State-encoding palette — the single source of truth for algorithm state.
+     Consumed by SVG fills, the legend, and code overlays alike. */
+  --state-default:        #2a313f;
+  --state-default-border: #3a4356;
+  --state-default-fg:     #aeb6c6;
+  --state-active:         #fbbf24; /* currently examined */
+  --state-compare:        #38bdf8; /* being compared against */
+  --state-swap:           #a78bfa; /* mid-swap */
+  --state-visited:        #2dd4bf; /* explored / done */
+  --state-frontier:       #fb923c; /* queued in frontier */
+  --state-path:           #fb7185; /* on path / cycle */
+  --state-final:          #34d399; /* sorted / answer */
+  --state-ink:            #0a0c10; /* text drawn on top of a bright state fill */
+
+  /* Difficulty */
+  --easy:   #34d399;
+  --medium: #fbbf24;
+  --hard:   #fb7185;
+
+  /* Code syntax tokens */
+  --code-kw:    #c4b5fd;
+  --code-fn:    #7dd3fc;
+  --code-num:   #fbbf24;
+  --code-str:   #86efac;
+  --code-com:   #64748b;
+  --code-punct: #94a3b8;
+  --code-var:   #e7eaf1;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 0 1px var(--brand-soft), 0 12px 40px -12px color-mix(in oklab, var(--brand) 40%, transparent);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:            #fafbfd;
+  --bg-elevated:   #ffffff;
+  --surface:       #ffffff;
+  --surface-2:     #f4f6fa;
+  --surface-3:     #eaeef4;
+  --border:        #e4e8f0;
+  --border-strong: #d2d8e4;
+
+  --text:       #171a21;
+  --text-muted: #59616f;
+  --text-faint: #939aa8;
+
+  --brand:        #6246ea;
+  --brand-strong: #5539e0;
+  --brand-soft:   color-mix(in oklab, #6246ea 10%, transparent);
+  --ring:         #6246ea;
+
+  --state-default:        #e9edf3;
+  --state-default-border: #d3dae6;
+  --state-default-fg:     #4a5464;
+  --state-ink:            #0a0c10;
+
+  --code-kw:    #7c3aed;
+  --code-fn:    #0284c7;
+  --code-num:   #b45309;
+  --code-str:   #15803d;
+  --code-com:   #94a3b8;
+  --code-punct: #64748b;
+  --code-var:   #171a21;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 10px 30px -12px rgba(16, 24, 40, 0.16);
+  --shadow-lg: 0 28px 64px -24px rgba(16, 24, 40, 0.22);
+
+  color-scheme: light;
+}
+
+/* Map tokens to Tailwind v4 utilities. `inline` so theme-switch vars resolve at use. */
+@theme inline {
+  --color-base:          var(--bg);
+  --color-elevated:      var(--bg-elevated);
+  --color-surface:       var(--surface);
+  --color-surface-2:     var(--surface-2);
+  --color-surface-3:     var(--surface-3);
+  --color-line:          var(--border);
+  --color-line-strong:   var(--border-strong);
+
+  --color-fg:            var(--text);
+  --color-fg-muted:      var(--text-muted);
+  --color-fg-faint:      var(--text-faint);
+
+  --color-brand:         var(--brand);
+  --color-brand-strong:  var(--brand-strong);
+  --color-brand-fg:      var(--brand-fg);
+  --color-brand-soft:    var(--brand-soft);
+  --color-cyan:          var(--accent-cyan);
+  --color-pink:          var(--accent-pink);
+
+  --color-state-default:  var(--state-default);
+  --color-state-active:   var(--state-active);
+  --color-state-compare:  var(--state-compare);
+  --color-state-swap:     var(--state-swap);
+  --color-state-visited:  var(--state-visited);
+  --color-state-frontier: var(--state-frontier);
+  --color-state-path:     var(--state-path);
+  --color-state-final:    var(--state-final);
+
+  --color-easy:   var(--easy);
+  --color-medium: var(--medium);
+  --color-hard:   var(--hard);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ============================================================================
+   Base
+   ========================================================================== */
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+}
+
+::selection {
+  background: color-mix(in oklab, var(--brand) 40%, transparent);
+  color: #fff;
+}
+
+/* Thin, premium scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--text-faint) 60%, transparent);
+  background-clip: content-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================================
+   Utilities / helpers
+   ========================================================================== */
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--text) 0%, var(--brand-strong) 45%, var(--accent-cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Faint dotted grid background used behind the hero + canvases */
+.bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+.glass {
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 var(--brand-soft); }
+  70% { box-shadow: 0 0 0 12px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
