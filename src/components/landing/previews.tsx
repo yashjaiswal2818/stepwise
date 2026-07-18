@@ -49,26 +49,68 @@ function ArraysPreview() {
 }
 
 /* --------------------------------------------------------- Linked Lists */
+/* Each node is one box split into a data cell and a next-pointer cell, and the
+   arrow leaves the pointer cell — the same shape the full visualization uses.
+   At this size an address won't read, so the pointer cell uses the textbook
+   dot-and-arrow notation, with ∅ marking the end of the list. */
 function LinkedListPreview() {
-  const xs = [30, 78, 126, 174], y = 66, r = 15;
+  const DATA_W = 29, PTR_W = 19, BOX_W = DATA_W + PTR_W, BOX_H = 28;
+  const GAP = 18, PITCH = BOX_W + GAP, startX = 10, topY = 52;
+  const cy = topY + BOX_H / 2;
+  const vals = [3, 7, 4];
+  const xOf = (i: number) => startX + i * PITCH;
+
   return (
     <Frame>
-      {xs.slice(0, -1).map((x, i) => (
+      <defs>
+        {vals.map((_, i) => (
+          <clipPath key={i} id={`llp-${i}`}>
+            <rect x={xOf(i)} y={topY} width={BOX_W} height={BOX_H} rx={6} />
+          </clipPath>
+        ))}
+      </defs>
+
+      {/* next pointers */}
+      {vals.slice(0, -1).map((_, i) => (
         <g key={i} stroke="var(--border-strong)" strokeWidth={1.5}>
-          <line x1={x + r} y1={y} x2={xs[i + 1] - r - 4} y2={y} />
-          <polygon points={`${xs[i + 1] - r - 4},${y - 3.5} ${xs[i + 1] - r + 2},${y} ${xs[i + 1] - r - 4},${y + 3.5}`} fill="var(--border-strong)" stroke="none" />
+          <line x1={xOf(i) + BOX_W} y1={cy} x2={xOf(i + 1) - 5} y2={cy} />
+          <polygon
+            points={`${xOf(i + 1) - 5},${cy - 3.5} ${xOf(i + 1) - 0.5},${cy} ${xOf(i + 1) - 5},${cy + 3.5}`}
+            fill="var(--border-strong)"
+            stroke="none"
+          />
         </g>
       ))}
-      {xs.map((x, i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={r} fill="var(--surface-2)" stroke="var(--state-swap)" strokeWidth={1.5} />
-          <text x={x} y={y + 5} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text)" fontFamily="var(--font-geist-mono)">{[3, 7, 4, 9][i]}</text>
-        </g>
-      ))}
-      <motion.g initial={{ x: xs[0] }} animate={{ x: xs }} transition={loop({ duration: 3, times: [0, 0.33, 0.66, 1] })}>
-        <rect x={-16} y={y - 44} width={32} height={16} rx={5} fill="var(--state-active)" />
-        <text x={0} y={y - 32} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--state-ink)">cur</text>
-        <path d={`M0 ${y - 26} l-4 -6 h8 z`} fill="var(--state-active)" />
+
+      {vals.map((v, i) => {
+        const x = xOf(i);
+        const isLast = i === vals.length - 1;
+        return (
+          <g key={i}>
+            <g clipPath={`url(#llp-${i})`}>
+              <rect x={x} y={topY} width={BOX_W} height={BOX_H} fill="var(--surface-2)" />
+              <rect x={x + DATA_W} y={topY} width={PTR_W} height={BOX_H} fill="var(--text)" opacity={0.07} />
+            </g>
+            <line x1={x + DATA_W} y1={topY} x2={x + DATA_W} y2={topY + BOX_H} stroke="var(--state-swap)" strokeWidth={1} opacity={0.5} />
+            <rect x={x} y={topY} width={BOX_W} height={BOX_H} rx={6} fill="none" stroke="var(--state-swap)" strokeWidth={1.5} />
+            <text x={x + DATA_W / 2} y={cy + 4.5} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text)" fontFamily="var(--font-geist-mono)">{v}</text>
+            {isLast ? (
+              <text x={x + DATA_W + PTR_W / 2} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-muted)" fontFamily="var(--font-geist-mono)">∅</text>
+            ) : (
+              <circle cx={x + DATA_W + PTR_W / 2} cy={cy} r={2.6} fill="var(--border-strong)" />
+            )}
+          </g>
+        );
+      })}
+
+      <motion.g
+        initial={{ x: xOf(0) + BOX_W / 2 }}
+        animate={{ x: vals.map((_, i) => xOf(i) + BOX_W / 2) }}
+        transition={loop({ duration: 3, times: [0, 0.5, 1] })}
+      >
+        <rect x={-16} y={topY - 30} width={32} height={16} rx={5} fill="var(--state-active)" />
+        <text x={0} y={topY - 18} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--state-ink)">cur</text>
+        <path d={`M0 ${topY - 12} l-4 -6 h8 z`} fill="var(--state-active)" />
       </motion.g>
     </Frame>
   );
@@ -102,7 +144,7 @@ function StacksPreview() {
 /* --------------------------------------------------------------- Queues */
 function QueuePreview() {
   const y = 50, size = 30, gap = 10, n = 4, period = 3.6;
-  const startX = 178, endX = -8, span = startX - endX;
+  const startX = 178, endX = -8;
   return (
     <Frame>
       <rect x={6} y={y - 6} width={188} height={size + 12} rx={10} fill="none" stroke="var(--border)" strokeDasharray="4 5" />
