@@ -6,18 +6,7 @@
 
 [**Live demo**](https://stepwise-beta.vercel.app) · [Report a bug](https://github.com/yashjaiswal2818/stepwise/issues) · [Contribute](CONTRIBUTING.md)
 
-<!-- ⚠️ BEFORE LAUNCH: record the demo GIF and uncomment the line below.
-     This is the single highest-leverage asset in the repo — people decide in ~3 seconds,
-     and a wall of text loses most of them.
-
-     Record ~10 seconds: open a problem → ask Ada "why did we move the pointer there?"
-     → show the canvas jump to that exact step. That one interaction IS the pitch.
-     Save it as docs/demo.gif, then uncomment:
-
-![Stepwise — an algorithm visualizer with an AI tutor that drives the canvas](docs/demo.gif)
--->
-
-*(Demo GIF coming — try the [live demo](https://stepwise-beta.vercel.app) in the meantime.)*
+![Stepwise — an algorithm visualizer with an AI tutor that drives the canvas](public/demo.gif)
 
 </div>
 

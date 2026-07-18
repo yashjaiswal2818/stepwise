@@ -74,9 +74,46 @@ Optional but nice:
 
 The **slug is the identity** across the whole app — progress, deep links, and the tutor all key off it. There is no problems table in the database; metadata lives in `catalog.ts`.
 
+### Shortcut: generate the tracer
+
+There's a generator that writes the tracer for you and proves it runs:
+
+```bash
+pnpm add-problem "Merge Intervals" --structure array
+# --structure: array | list | stack | queue | hash | tree | graph | grid
+# optional:    --slug merge-intervals   --dir arrays
+```
+
+It sends the engine contract, the tracer API, and a gold-standard example to a
+model, writes the result, then **imports and executes it** — checking the trace
+against the same invariants the whole catalog is held to. Validation failures are
+fed back for up to 3 attempts, and anything still broken is deleted rather than
+left in your tree. It prints the registration snippets when it succeeds.
+
+Set `ADD_PROBLEM_MODEL` to a stronger model than the default for better
+first-pass results.
+
+**It deliberately does not register the problem for you, and its output is a
+draft, not a finished contribution.** In testing, generated tracers ran and
+passed every mechanical check while still containing a line anchor pointing at
+the wrong statement, and an API call that technically worked but misrepresented
+what was happening. Both are invisible to any automated check and obvious to a
+human reading it. Review before you register.
+
 ### 3. Check your work
 
-Run it at `/problem/<your-slug>` and step all the way through:
+Whatever you generate or hand-write, run:
+
+```bash
+pnpm validate:traces              # every problem × every dataset
+pnpm validate:traces <your-slug>  # just yours
+```
+
+This executes each trace and checks step ordering, non-empty narration, and — the
+one that rots silently — that every `codeLines` anchor still points inside
+`SOURCE`. It's wired to exit non-zero, so it works as a CI gate.
+
+Then run it at `/problem/<your-slug>` and step all the way through:
 
 - Does every step highlight the right source line?
 - Does the narration read like a human explaining, not a log line?
