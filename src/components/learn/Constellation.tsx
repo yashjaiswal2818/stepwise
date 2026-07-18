@@ -1,6 +1,14 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type CSSProperties, type MutableRefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type CSSProperties,
+  type MutableRefObject,
+} from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import {
@@ -17,9 +25,11 @@ import {
   Plus,
   Minus,
   Locate,
+  ArrowLeft,
 } from "lucide-react";
 import { NODES, EDGES, NODE_BY_ID, NEIGHBORS, STRUCTURE_CHILDREN, VIEW, type CNode } from "@/curriculum/constellation";
 import { PROBLEMS } from "@/curriculum/catalog";
+import { STRUCTURES } from "@/curriculum/structures";
 import { useProgress } from "@/engagement/useProgress";
 import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
@@ -37,6 +47,8 @@ const STRUCT_ICON: Record<string, IconType> = {
   graphs: Waypoints,
 };
 
+const BLURB = Object.fromEntries(STRUCTURES.map((s) => [s.slug, s.blurb]));
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export function Constellation() {
@@ -53,10 +65,13 @@ export function Constellation() {
   const exploredCount = mounted ? PROBLEMS.filter((p) => solved.includes(p.slug)).length : 0;
 
   const [hovered, setHovered] = useState<string | null>(null);
+  const [focused, setFocused] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [fit, setFit] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const sizeRef = useRef({ w: 0, h: 0 });
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
   const moved = useRef(false);
 
@@ -67,6 +82,7 @@ export function Constellation() {
     const compute = () => {
       const { width, height } = el.getBoundingClientRect();
       if (!width || !height) return;
+      sizeRef.current = { w: width, h: height };
       const s = clamp(Math.min(width / VIEW.w, height / VIEW.h) * 0.98, 0.35, 1.3);
       setFit(s);
       setScale((prev) => (Math.abs(prev - 1) < 0.001 ? s : prev)); // only snap on first measure
@@ -77,10 +93,53 @@ export function Constellation() {
     return () => ro.disconnect();
   }, []);
 
+  const unfocus = () => {
+    setFocused(null);
+    setScale(fit);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Frame a structure hub and its problem children; toggles off if already focused.
+  const focusHub = (id: string) => {
+    if (focused === id) return unfocus();
+    const group = [NODE_BY_ID[id], ...(STRUCTURE_CHILDREN[id] ?? []).map((c) => NODE_BY_ID[c])].filter(Boolean);
+    const xs = group.map((n) => n.x);
+    const ys = group.map((n) => n.y);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const pad = 150;
+    const bw = Math.max(...xs) - Math.min(...xs) + pad * 2;
+    const bh = Math.max(...ys) - Math.min(...ys) + pad * 2;
+    const { w: vw, h: vh } = sizeRef.current;
+    const s = vw && vh ? clamp(Math.min(vw / bw, vh / bh), Math.max(fit, 0.9), 1.8) : Math.max(fit, 1);
+    setScale(s);
+    setPan({ x: -s * (cx - VIEW.w / 2), y: -s * (cy - VIEW.h / 2) });
+    setFocused(id);
+  };
+
+  // Optional deep link: /learn?focus=<structure-slug> opens that hub already focused.
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("focus");
+    if (f && NODE_BY_ID[f]?.kind === "structure") requestAnimationFrame(() => focusHub(f));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Esc exits focus.
+  useEffect(() => {
+    if (!focused) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") unfocus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, fit]);
+
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     drag.current = { ox: e.clientX, oy: e.clientY, px: pan.x, py: pan.y };
     moved.current = false;
+    setDragging(true);
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -88,26 +147,28 @@ export function Constellation() {
     const dx = e.clientX - drag.current.ox;
     const dy = e.clientY - drag.current.oy;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved.current = true;
-    setPan({ x: clamp(drag.current.px + dx, -420, 420), y: clamp(drag.current.py + dy, -320, 320) });
+    setPan({ x: clamp(drag.current.px + dx, -900, 900), y: clamp(drag.current.py + dy, -700, 700) });
   };
   const endDrag = () => {
+    if (!moved.current && focused) unfocus(); // tap empty space to exit focus
     drag.current = null;
+    setDragging(false);
   };
 
-  const zoom = (dir: number) => setScale((s) => clamp(+(s + dir * 0.15).toFixed(2), 0.4, 1.7));
-  const recenter = () => {
-    setScale(fit);
-    setPan({ x: 0, y: 0 });
-  };
+  const zoom = (dir: number) => setScale((s) => clamp(+(s + dir * 0.15).toFixed(2), 0.4, 1.9));
 
-  const active = hovered ? new Set<string>([hovered, ...NEIGHBORS[hovered]]) : null;
+  // Focus takes precedence over hover for what's emphasized.
+  const focusSet = focused ? new Set<string>([focused, ...(STRUCTURE_CHILDREN[focused] ?? [])]) : null;
+  const hoverSet = hovered ? new Set<string>([hovered, ...NEIGHBORS[hovered]]) : null;
+  const active = focusSet ?? hoverSet;
+  const hub = focused ? NODE_BY_ID[focused] : null;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-5 py-4 sm:px-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-fg text-balance sm:text-[28px]">Start anywhere.</h1>
-          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-fg-muted sm:text-sm">
+          <p className="mt-1 max-w-md text-[13px] leading-relaxed text-fg-muted sm:max-w-xl sm:text-sm">
             Not a syllabus — a map. Every structure and problem, wired by what builds on what. Follow a thread that
             pulls you in.
           </p>
@@ -132,7 +193,6 @@ export function Constellation() {
         onPointerCancel={endDrag}
         className="bg-grid relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden bg-base active:cursor-grabbing"
       >
-        {/* Soft brand glow anchoring the center of the map */}
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 h-[60%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-60 blur-[120px]"
           style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--brand) 22%, transparent), transparent 70%)" }}
@@ -145,6 +205,7 @@ export function Constellation() {
             height: VIEW.h,
             transform: `translate(-50%,-50%) translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
             transformOrigin: "center",
+            transition: dragging ? "none" : "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
           <svg
@@ -162,8 +223,6 @@ export function Constellation() {
               const dim = !!active && !on;
               const builds = e.kind === "builds";
               const color = builds ? "var(--brand)" : b.accent;
-              // The "builds on" backbone glows a faint brand purple by default so the
-              // web of relationships reads at a glance; "has" edges stay quieter.
               const restOpacity = builds ? 0.5 : 0.32;
               return (
                 <motion.line
@@ -176,7 +235,7 @@ export function Constellation() {
                   strokeWidth={builds ? 2 : 1.25}
                   strokeLinecap="round"
                   initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: dim ? 0.1 : on ? 0.95 : restOpacity }}
+                  animate={{ pathLength: 1, opacity: dim ? 0.08 : on ? 0.95 : restOpacity }}
                   transition={{
                     pathLength: { duration: 0.75, delay: 0.15 + i * 0.012, ease: [0.22, 1, 0.36, 1] },
                     opacity: { duration: 0.3 },
@@ -194,12 +253,40 @@ export function Constellation() {
               solved={isSolved(n.id)}
               dim={active ? !active.has(n.id) : false}
               hot={hovered === n.id}
+              boost={!!active && active.has(n.id) && (n.kind === "structure" || !!focusSet)}
               moved={moved}
+              onActivate={n.kind === "structure" ? () => focusHub(n.id) : undefined}
               onEnter={() => setHovered(n.id)}
               onLeave={() => setHovered(null)}
             />
           ))}
         </div>
+
+        {/* Focus card */}
+        {hub && (
+          <motion.div
+            initial={false}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute left-4 top-4 z-30 w-[min(19rem,calc(100%-2rem))] rounded-xl border border-line bg-surface/90 p-4 shadow-xl backdrop-blur"
+          >
+            <div className="flex items-center gap-2">
+              <span className="size-2.5 rounded-full" style={{ background: hub.accent }} />
+              <h3 className="text-sm font-semibold text-fg">{hub.label}</h3>
+            </div>
+            {BLURB[hub.id] && <p className="mt-1.5 text-[13px] leading-relaxed text-fg-muted">{BLURB[hub.id]}</p>}
+            <p className="mt-2 text-[12px] text-fg-faint">
+              {(STRUCTURE_CHILDREN[hub.id] ?? []).length} problem
+              {(STRUCTURE_CHILDREN[hub.id] ?? []).length === 1 ? "" : "s"} · click one to dive in
+            </p>
+            <button
+              onClick={unfocus}
+              className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-strong hover:underline"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to the map
+            </button>
+          </motion.div>
+        )}
 
         <div className="absolute bottom-4 right-4 flex flex-col gap-1.5">
           <ZoomBtn onClick={() => zoom(1)} label="Zoom in">
@@ -208,14 +295,16 @@ export function Constellation() {
           <ZoomBtn onClick={() => zoom(-1)} label="Zoom out">
             <Minus className="size-4" />
           </ZoomBtn>
-          <ZoomBtn onClick={recenter} label="Recenter">
+          <ZoomBtn onClick={unfocus} label="Recenter">
             <Locate className="size-4" />
           </ZoomBtn>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 hidden rounded-full border border-line bg-surface/80 px-3 py-1.5 text-[12px] text-fg-faint backdrop-blur sm:block">
-          Drag to pan · ± to zoom · click a node to dive in
-        </div>
+        {!focused && (
+          <div className="pointer-events-none absolute bottom-4 left-4 hidden rounded-full border border-line bg-surface/80 px-3 py-1.5 text-[12px] text-fg-faint backdrop-blur sm:block">
+            Drag to pan · click a hub to focus · a problem to dive in
+          </div>
+        )}
       </div>
     </div>
   );
@@ -227,7 +316,9 @@ function NodeDot({
   solved,
   dim,
   hot,
+  boost,
   moved,
+  onActivate,
   onEnter,
   onLeave,
 }: {
@@ -236,21 +327,23 @@ function NodeDot({
   solved: boolean;
   dim: boolean;
   hot: boolean;
+  boost: boolean;
   moved: MutableRefObject<boolean>;
+  onActivate?: () => void;
   onEnter: () => void;
   onLeave: () => void;
 }) {
   const isStruct = n.kind === "structure";
   const size = isStruct ? 82 : 52;
   const Icon = isStruct ? STRUCT_ICON[n.structure] : null;
-  const lit = solved || hot;
+  const lit = solved || hot || boost;
 
   return (
     <motion.div
       className="absolute"
-      style={{ left: n.x, top: n.y, transform: "translate(-50%,-50%)", zIndex: hot ? 20 : isStruct ? 10 : 5 }}
+      style={{ left: n.x, top: n.y, transform: "translate(-50%,-50%)", zIndex: hot || boost ? 20 : isStruct ? 10 : 5 }}
       initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ opacity: dim ? 0.3 : 1, scale: 1 }}
+      animate={{ opacity: dim ? 0.28 : 1, scale: 1 }}
       transition={{
         opacity: { duration: 0.3 },
         scale: { type: "spring", stiffness: 360, damping: 22, delay: 0.1 + i * 0.02 },
@@ -260,7 +353,14 @@ function NodeDot({
         href={n.href}
         aria-label={`${n.label} — ${isStruct ? "structure" : "problem"}${solved ? ", explored" : ""}`}
         onClick={(e) => {
-          if (moved.current) e.preventDefault();
+          if (moved.current) {
+            e.preventDefault();
+            return;
+          }
+          if (onActivate) {
+            e.preventDefault();
+            onActivate();
+          }
         }}
         onPointerDown={(e) => {
           e.stopPropagation();
@@ -277,7 +377,7 @@ function NodeDot({
           className={cn(
             "relative grid place-items-center rounded-full border transition-[transform,box-shadow,border-color] duration-200",
             isStruct ? "bg-surface" : "bg-elevated",
-            hot ? "scale-110" : "scale-100",
+            hot || boost ? "scale-110" : "scale-100",
           )}
           style={{
             width: size,

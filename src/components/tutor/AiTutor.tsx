@@ -59,7 +59,11 @@ function runAction(a: Action, slug: string): string {
   const p = usePlayer.getState();
   switch (a.name) {
     case "goto_step": {
-      const s = Math.max(1, Math.round(Number(a.input.step) || 1));
+      // seek() clamps internally, so report the step we actually landed on —
+      // echoing Ada's raw number would claim "step 99" while showing step 20.
+      const total = p.trace?.steps.length ?? 0;
+      if (!total) return "";
+      const s = Math.min(Math.max(Math.round(Number(a.input.step) || 1), 1), total);
       p.seek(s - 1);
       return `Jumped to step ${s}`;
     }
@@ -128,15 +132,83 @@ export function AiTutor({ problem }: { problem: Problem }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: history, context: buildContext(problem) }),
       });
-      const data = await res.json();
-      if (data.needsKey) {
-        setMessages((prev) => [...prev, { role: "assistant", text: "", kind: "key" }]);
-      } else if (data.error) {
-        setMessages((prev) => [...prev, { role: "assistant", text: data.error, kind: "error" }]);
-      } else {
-        const labels = (data.actions as Action[]).map((a) => runAction(a, problem.slug)).filter(Boolean);
-        const text = data.text || (labels.length ? "" : "Hmm, I didn't catch that — mind rephrasing?");
-        setMessages((prev) => [...prev, { role: "assistant", text, actions: labels }]);
+
+      // Pre-stream outcomes (missing key, validation, upstream failure) come back
+      // as JSON; a live reply comes back as an SSE stream.
+      const isStream = (res.headers.get("content-type") ?? "").includes("text/event-stream");
+      if (!isStream || !res.body) {
+        const data = await res.json().catch(() => ({ error: "Ada sent something I couldn't read." }));
+        if (data.needsKey) setMessages((prev) => [...prev, { role: "assistant", text: "", kind: "key" }]);
+        else setMessages((prev) => [...prev, { role: "assistant", text: data.error ?? "Something went wrong.", kind: "error" }]);
+        return;
+      }
+
+      // Streaming: one placeholder bubble, filled as text deltas and tool actions
+      // arrive. `acc` holds the running state; flush() rewrites the last bubble.
+      setMessages((prev) => [...prev, { role: "assistant", text: "" }]);
+      const acc = { text: "", labels: [] as string[] };
+      const flush = () =>
+        setMessages((prev) => {
+          const next = prev.slice();
+          next[next.length - 1] = {
+            role: "assistant",
+            text: acc.text,
+            actions: acc.labels.length ? acc.labels : undefined,
+          };
+          return next;
+        });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let sawError = false;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+          const payload = dataLine.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          let evt: { type: string; value?: string; name?: string; input?: Record<string, unknown>; message?: string };
+          try {
+            evt = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          if (evt.type === "text" && evt.value) {
+            acc.text += evt.value;
+            flush();
+          } else if (evt.type === "tool_use" && evt.name) {
+            // Tool events arrive after the prose, so the visualization jumps once
+            // the reply has landed rather than mid-sentence.
+            const label = runAction({ name: evt.name, input: evt.input ?? {} }, problem.slug);
+            if (label) {
+              acc.labels.push(label);
+              flush();
+            }
+          } else if (evt.type === "error") {
+            sawError = true;
+            setMessages((prev) => {
+              const next = prev.slice();
+              next[next.length - 1] = { role: "assistant", text: evt.message ?? "Something went wrong.", kind: "error" };
+              return next;
+            });
+          }
+        }
+      }
+
+      // Empty reply with no actions and no error → the model whiffed; prompt a retry.
+      if (!sawError && !acc.text && acc.labels.length === 0) {
+        setMessages((prev) => {
+          const next = prev.slice();
+          next[next.length - 1] = { role: "assistant", text: "Hmm, I didn't catch that — mind rephrasing?" };
+          return next;
+        });
       }
     } catch {
       setMessages((prev) => [
@@ -311,7 +383,7 @@ function KeyCard() {
       </pre>
       <p>
         Get one at <span className="font-medium text-fg">openrouter.ai/keys</span>, then restart the dev
-        server. (Anthropic works too — see <span className="font-medium text-fg">.env.local.example</span>.)
+        server. There&rsquo;s a free tier — see <span className="font-medium text-fg">.env.local.example</span>.
       </p>
     </div>
   );

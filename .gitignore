@@ -41,3 +41,25 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 notes.txt
+
+# internal planning docs — not for the public repo
+PRD-*.md
+compass_artifact_*.md
+
+# AI agent instructions (local only)
+AGENTS.md
+CLAUDE.md
+.claude/
+.cursor/
+.aider*
+.windsurfrules
+
+# editor / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+# Finder/sync duplicate folders ("meta 2", "file 2.ts")
+* 2
+* 2.*

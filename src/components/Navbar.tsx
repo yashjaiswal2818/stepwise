@@ -3,6 +3,7 @@ import { Logo } from "./landing/Logo";
 import { ThemeToggle } from "@/design-system/ui/ThemeToggle";
 import { NavStreak } from "./engagement/NavStreak";
 import { ModeToggle } from "./engagement/ModeToggle";
+import { AuthButton } from "./auth/AuthButton";
 import { buttonVariants } from "@/design-system/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export function Navbar() {
           <ModeToggle />
           <NavStreak />
           <ThemeToggle />
+          <AuthButton />
           <Link
             href="/learn"
             className={cn(buttonVariants({ size: "sm" }), "hidden sm:inline-flex")}
