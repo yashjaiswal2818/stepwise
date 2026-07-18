@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { rateLimit } from "@/lib/ratelimit";
+import { getCurrentUser } from "@/lib/dal";
+import { appendMessage, ensureConversation, type StoredAction } from "@/lib/conversations";
 
 // The key is read server-side only and never reaches the browser — pin to the
 // Node runtime rather than edge, which keeps env handling boring and predictable.
@@ -233,6 +235,8 @@ interface LogCtx {
   ipTag: string;
   model: string;
   startedAt: number;
+  /** Set only for signed-in users — the conversation to append the reply to. */
+  conversationId?: string | null;
 }
 
 function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Array> {
@@ -241,6 +245,7 @@ function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Ar
   const reader = upstream.body!.getReader();
   const tools = new Map<number, { name: string; args: string }>();
   let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
+  let fullText = ""; // accumulated for persistence; deltas still stream immediately
   let buffer = "";
 
   // If the client disconnects mid-reply the controller closes; enqueue/close
@@ -309,6 +314,7 @@ function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Ar
               if (!delta) continue;
 
               if (typeof delta.content === "string" && delta.content) {
+                fullText += delta.content;
                 safeEnqueue(encoder.encode(sse({ type: "text", value: delta.content })));
               }
               if (Array.isArray(delta.tool_calls)) {
@@ -324,6 +330,7 @@ function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Ar
           }
 
           // Upstream done: flush any accumulated tool calls as complete events.
+          const executed: StoredAction[] = [];
           for (const { name, args } of tools.values()) {
             if (!name) continue;
             let input: Record<string, unknown> = {};
@@ -332,6 +339,7 @@ function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Ar
             } catch {
               continue; // malformed tool args — skip rather than emit a broken action
             }
+            executed.push({ name, input });
             safeEnqueue(encoder.encode(sse({ type: "tool_use", name, input })));
           }
           safeClose();
@@ -344,6 +352,16 @@ function envelopeStream(upstream: Response, log: LogCtx): ReadableStream<Uint8Ar
             out_tokens: usage?.completion_tokens ?? null,
             tools: tools.size,
           });
+
+          // Persist the reply for signed-in users. Runs after the stream closes so
+          // it never delays delivery, and never throws into the response.
+          if (log.conversationId && (fullText || executed.length)) {
+            try {
+              await appendMessage(log.conversationId, "assistant", fullText, executed);
+            } catch (err) {
+              logLine({ ev: "persist_err", ip: log.ipTag, msg: err instanceof Error ? err.message : "unknown" });
+            }
+          }
         } catch {
           safeEnqueue(encoder.encode(sse({ type: "error", message: "Lost the connection to Ada mid-reply." })));
           safeClose();
@@ -391,22 +409,27 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   if (!process.env.OPENROUTER_API_KEY) return Response.json({ needsKey: true });
 
-  let body: { messages?: ChatMessage[]; context?: TutorContext };
+  let body: { messages?: ChatMessage[]; context?: TutorContext; problemSlug?: string };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
-  const { messages, context } = body;
+  const { messages, context, problemSlug } = body;
   if (!messages?.length || !context) {
     return Response.json({ error: "Missing messages or context." }, { status: 400 });
   }
 
-  // Rate-limit per IP before spending an LLM call. A blocked request never
-  // reaches OpenRouter, so 429s are cheap.
+  // Signed-in users get their own rate-limit budget keyed by user id; anonymous
+  // users keep sharing the IP bucket. The anonymous path stays open either way.
+  const user = await getCurrentUser();
   const ip = clientIp(req);
-  const tag = ipTag(ip);
-  const rl = await rateLimit(ip);
+  const rlKey = user ? `u:${user.id}` : ip;
+  const tag = user ? `u:${ipTag(user.id)}` : ipTag(ip);
+
+  // Rate-limit before spending an LLM call. A blocked request never reaches
+  // OpenRouter, so 429s are cheap.
+  const rl = await rateLimit(rlKey);
   if (!rl.ok) {
     logLine({ ev: "429", ip: tag, tier: rl.tier, backend: rl.backend });
     const message =
@@ -415,14 +438,31 @@ export async function POST(req: Request) {
         : "One moment — you're going a little fast for Ada. Try again in a few seconds.";
     return Response.json({ error: message }, { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } });
   }
-  logLine({ ev: "req", ip: tag, model: OPENROUTER_MODEL, backend: rl.backend, remaining: rl.remaining });
+  logLine({ ev: "req", ip: tag, model: OPENROUTER_MODEL, backend: rl.backend, remaining: rl.remaining, auth: user ? 1 : 0 });
+
+  // Persist the incoming turn for signed-in users. Best-effort: a DB problem must
+  // never stop the learner getting an answer.
+  let conversationId: string | null = null;
+  if (user && problemSlug) {
+    try {
+      conversationId = await ensureConversation(user.id, problemSlug);
+      const latest = messages[messages.length - 1];
+      if (latest?.role === "user") await appendMessage(conversationId, "user", latest.content);
+    } catch (err) {
+      conversationId = null;
+      logLine({ ev: "persist_err", ip: tag, msg: err instanceof Error ? err.message : "unknown" });
+    }
+  }
 
   try {
     // Pre-stream failures (bad key, tool-retry exhausted, network) surface here as
     // a clean JSON 500. Once the stream is live, mid-flight errors ride the SSE
     // channel as {type:"error"} instead — headers are already sent by then.
     const upstream = await connectOpenRouter(systemPrompt(context), messages);
-    return new Response(envelopeStream(upstream, { ipTag: tag, model: OPENROUTER_MODEL, startedAt }), { headers: SSE_HEADERS });
+    return new Response(
+      envelopeStream(upstream, { ipTag: tag, model: OPENROUTER_MODEL, startedAt, conversationId }),
+      { headers: SSE_HEADERS },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Something went wrong reaching Ada.";
     logLine({ ev: "err", ip: tag, ms: Date.now() - startedAt, msg: message });

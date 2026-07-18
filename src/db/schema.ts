@@ -65,7 +65,9 @@ export const conversation = pgTable("conversation", {
  * One message in a conversation. `ordinal` preserves render order (the UI trims
  * by recency but storage keeps the full transcript). `actions` captures the
  * assistant's tool_use events (name + input) — which the inbound wire history
- * drops, so the DB can hold richer context than the client sends back.
+ * drops, so the DB holds richer context than the client sends back. The UI's
+ * human label is derived client-side on reload (it depends on runtime state),
+ * and reloaded actions are shown, never re-executed against the visualization.
  */
 export const message = pgTable("message", {
   id: uuid("id").primaryKey().defaultRandom(),

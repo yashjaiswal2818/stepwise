@@ -1,0 +1,48 @@
+name: New problem request
+description: Suggest an algorithm or data structure to visualize
+labels: ["new problem", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to add it yourself? See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md) —
+        there's a step-by-step walkthrough, and this is a great first contribution.
+
+  - type: input
+    id: name
+    attributes:
+      label: Which algorithm or data structure?
+      placeholder: e.g. Merge Intervals, Trie insert/search, Kadane's algorithm
+    validations:
+      required: true
+
+  - type: dropdown
+    id: structure
+    attributes:
+      label: What does it operate on?
+      options:
+        - Array / string
+        - Hash table
+        - Stack
+        - Queue
+        - Linked list
+        - Tree
+        - Graph
+        - Grid
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What's the "aha" moment?
+      description: What's the one insight a learner needs? This shapes how the steps get broken up.
+      placeholder: e.g. "Sorting by start time means you only ever compare against the last kept interval."
+
+  - type: checkboxes
+    id: claim
+    attributes:
+      label: Would you like to build it?
+      options:
+        - label: I'd like to work on this myself

@@ -54,6 +54,31 @@ function buildContext(problem: Problem) {
   };
 }
 
+/**
+ * Human label for a stored action WITHOUT executing it. Used when rehydrating a
+ * saved conversation — reopening a problem should show what Ada did, not replay
+ * it and yank the visualization around.
+ */
+function describeAction(a: Action, slug: string): string {
+  switch (a.name) {
+    case "goto_step":
+      return `Jumped to step ${Math.max(1, Math.round(Number(a.input.step) || 1))}`;
+    case "play":
+      return "Started playback";
+    case "pause":
+      return "Paused";
+    case "set_dataset": {
+      const id = String(a.input.dataset_id ?? "");
+      const ds = getExample(slug)?.datasets.find((d) => d.id === id);
+      return ds ? `Switched to “${ds.label}”` : "";
+    }
+    case "run_custom_input":
+      return `Ran on ${String(a.input.values ?? "")}`;
+    default:
+      return "";
+  }
+}
+
 /** Execute one tool call Ada returned; give back a short human label of what happened. */
 function runAction(a: Action, slug: string): string {
   const p = usePlayer.getState();
@@ -100,6 +125,7 @@ export function AiTutor({ problem }: { problem: Problem }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const lesson = getLesson(problem.slug);
@@ -113,6 +139,35 @@ export function AiTutor({ problem }: { problem: Problem }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  // Rehydrate a saved conversation the first time the panel opens. Signed-out
+  // users get an empty list — the tutor still works, it just doesn't remember.
+  useEffect(() => {
+    if (!open || historyLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/tutor/history?slug=${encodeURIComponent(problem.slug)}`);
+        const data = await res.json();
+        const prior: Msg[] = (data.messages ?? []).map(
+          (m: { role: "user" | "assistant"; content: string; actions: Action[] | null }) => ({
+            role: m.role,
+            text: m.content,
+            actions: (m.actions ?? []).map((a) => describeAction(a, problem.slug)).filter(Boolean),
+          }),
+        );
+        // Don't clobber anything the learner has already typed this session.
+        if (!cancelled && prior.length) setMessages((cur) => (cur.length ? cur : prior));
+      } catch {
+        /* history is a nice-to-have — never block opening the panel */
+      } finally {
+        if (!cancelled) setHistoryLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, historyLoaded, problem.slug]);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -130,7 +185,7 @@ export function AiTutor({ problem }: { problem: Problem }) {
       const res = await fetch("/api/tutor", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history, context: buildContext(problem) }),
+        body: JSON.stringify({ messages: history, context: buildContext(problem), problemSlug: problem.slug }),
       });
 
       // Pre-stream outcomes (missing key, validation, upstream failure) come back

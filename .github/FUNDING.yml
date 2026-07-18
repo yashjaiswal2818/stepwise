@@ -1,0 +1,10 @@
+# Shows a "Sponsor" button next to Star/Fork.
+# GitHub takes no fee on sponsorships to personal accounts.
+# You must also enable Sponsorships in the repo's Settings after committing this.
+github: [yashjaiswal2818]
+
+# Optional alternatives — GitHub Sponsors depends on Stripe and isn't available
+# in every country, so offering a second option is worth it. Uncomment if you set
+# them up.
+# ko_fi: your-handle
+# custom: ["https://your-site/donate"]

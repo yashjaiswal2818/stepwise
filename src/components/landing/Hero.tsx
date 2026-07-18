@@ -26,13 +26,7 @@ export function Hero() {
       <div className="bg-grid pointer-events-none absolute inset-0 -z-10 opacity-40 [mask-image:radial-gradient(70%_50%_at_50%_0%,black,transparent)]" />
 
       <div className="mx-auto max-w-5xl px-5 pt-16 pb-12 text-center sm:pt-24">
-        <motion.a
-          {...fade(0)}
-          href="#structures"
-          className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/60 px-3 py-1 text-xs font-medium text-fg-muted backdrop-blur"
-        >
-          <Sparkles className="size-3.5 text-brand-strong" /> Visual, step-by-step DSA learning
-        </motion.a>
+       
         <motion.h1
           {...fade(0.06)}
           className="mt-5 text-balance text-4xl font-semibold tracking-tight text-fg sm:text-6xl"
