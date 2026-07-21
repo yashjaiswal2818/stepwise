@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none" role="img" aria-label="Stepwise">
+  <!--
+    Three ascending bars on a shared baseline. Heights are 1 : 1.5 : 2 and the
+    ink steps with them, so the ramp reads twice — in size and in weight.
+
+    Geometry is measured off the 2048px master: shared baseline at 1706, pitch
+    512, width 452, stroke 73.5, outer corner radius 86, scaled by 21/1365. The
+    rects below are the stroke CENTRELINE, so they sit inset half a stroke from
+    those outer bounds.
+
+    Colours are the light/dark text-faint, text-muted and text token values
+    inlined. A standalone SVG cannot see the host document's custom properties,
+    so a var() reference renders as nothing in a file served from public/ — the
+    media query is how this one re-themes. The inline <Logo> component can and
+    does use the real tokens.
+
+    (Token names are written without their leading dashes on purpose: a double
+    hyphen is illegal inside an XML comment and makes the whole file unparseable.)
+  -->
+  <style>
+    .b1 { stroke: oklch(0.560 0.012 258); }
+    .b2 { stroke: oklch(0.470 0.014 258); }
+    .b3 { stroke: oklch(0.235 0.010 258); }
+    @media (prefers-color-scheme: dark) {
+      .b1 { stroke: oklch(0.655 0.012 258); }
+      .b2 { stroke: oklch(0.760 0.012 258); }
+      .b3 { stroke: oklch(0.960 0.004 258); }
+    }
+  </style>
+  <rect class="b1" x="2.20"  y="13.57" width="5.82" height="9.36"  rx="0.76" stroke-width="1.13"/>
+  <rect class="b2" x="10.07" y="8.22"  width="5.82" height="14.72" rx="0.76" stroke-width="1.13"/>
+  <rect class="b3" x="17.97" y="3.07"  width="5.84" height="19.87" rx="0.76" stroke-width="1.13"/>
+</svg>

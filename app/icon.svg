@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 26 26" role="img" aria-label="Stepwise">
+  <!--
+    Favicon cut of the Stepwise mark. Same three ascending bars and ink ramp as
+    the navbar Logo, but FILLED rather than outlined: at 16px a hollow bar's
+    interior collapses and the lightest bar washes out, so the fill carries the
+    shape where a 0.7px stroke could not.
+
+    Bars occupy the outer bounds measured off the 2048px master (shared baseline,
+    heights 1 : 1.5 : 2). Colours are the light/dark text-faint, text-muted and
+    text token values inlined, because a favicon is served standalone and cannot
+    read the page's custom properties. Browsers honour prefers-color-scheme
+    inside an SVG favicon, so this re-themes with the browser chrome.
+
+    (Token names are written without leading dashes: a double hyphen is illegal
+    inside an XML comment and would make the file unparseable.)
+  -->
+  <style>
+    .b1 { fill: oklch(0.560 0.012 258); }
+    .b2 { fill: oklch(0.470 0.014 258); }
+    .b3 { fill: oklch(0.235 0.010 258); }
+    @media (prefers-color-scheme: dark) {
+      .b1 { fill: oklch(0.655 0.012 258); }
+      .b2 { fill: oklch(0.760 0.012 258); }
+      .b3 { fill: oklch(0.960 0.004 258); }
+    }
+  </style>
+  <rect class="b1" x="1.63"  y="13.00" width="6.96" height="10.50" rx="1.1"/>
+  <rect class="b2" x="9.51"  y="7.65"  width="6.96" height="15.85" rx="1.1"/>
+  <rect class="b3" x="17.40" y="2.50"  width="6.98" height="21.00" rx="1.1"/>
+</svg>
