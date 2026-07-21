@@ -85,8 +85,10 @@ export class TreeTracer extends BaseTracer {
   private edges(): GEdge[] {
     const es: GEdge[] = [];
     for (const [pid, k] of this.kids) {
-      if (k.left) es.push({ id: `${pid}-${k.left}`, source: pid, target: k.left, state: "default" });
-      if (k.right) es.push({ id: `${pid}-${k.right}`, source: pid, target: k.right, state: "default" });
+      // Carry the side so the layout can offset an only-child: a left-only and a
+      // right-only child must not draw as the same straight stick.
+      if (k.left) es.push({ id: `${pid}-${k.left}`, source: pid, target: k.left, state: "default", side: "left" });
+      if (k.right) es.push({ id: `${pid}-${k.right}`, source: pid, target: k.right, state: "default", side: "right" });
     }
     return es;
   }

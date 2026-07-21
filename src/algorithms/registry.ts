@@ -15,6 +15,7 @@ import { maxDepthTrace } from "./trees/max-depth";
 import { numberOfIslandsTrace } from "./graphs/number-of-islands";
 import { dijkstraTrace } from "./graphs/dijkstra";
 import { bfsDfsTrace } from "./graphs/bfs-dfs";
+import { whatIsAnArrayTrace } from "./lessons/arrays";
 
 export interface Dataset {
   id: string;
@@ -164,6 +165,16 @@ export const REGISTRY: Record<string, ExampleDef> = {
       { id: "bfs", label: "BFS", values: [] },
       { id: "dfs", label: "DFS", values: [] },
     ],
+  },
+
+  // ---- Chapters: concept lessons. A lesson is a Trace like any other, so it
+  // lives in REGISTRY and is playable, validatable and dev-inspectable for free.
+  // Lessons are intentionally NOT in PROBLEMS/catalog.ts — they have no
+  // difficulty and must not pollute PROBLEMS.length.
+  "lesson-arrays": {
+    id: "lesson-arrays",
+    build: (ds) => whatIsAnArrayTrace([], ds.id),
+    datasets: [{ id: "default", label: "What an array is", values: [] }],
   },
 };
 

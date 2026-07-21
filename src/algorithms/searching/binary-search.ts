@@ -68,13 +68,25 @@ export function binarySearchTrace(values: number[], target: number, datasetId = 
       break;
     }
     if (t.value(mid) < target) {
+      const oldMid = t.value(mid);
       lo = mid + 1;
-      t.clearPointer("mid").setVars({ lo, hi });
-      t.note(`${t.value(mid)} < ${target} — discard the left half`, L.low);
+      // Binary search IS the movement of lo and hi — so the labelled chips must
+      // move with them, not just the Watch vars. Guard the new bound: when the
+      // window has collapsed (lo > hi) the chip has nothing valid to point at, so
+      // it is cleared rather than left dangling past the array end.
+      t.clearPointer("mid");
+      if (lo <= hi) t.setPointer("lo", lo);
+      else t.clearPointer("lo");
+      t.setVars({ lo, hi });
+      t.note(`${oldMid} < ${target} — discard the left half`, L.low);
     } else {
+      const oldMid = t.value(mid);
       hi = mid - 1;
-      t.clearPointer("mid").setVars({ lo, hi });
-      t.note(`${t.value(mid)} > ${target} — discard the right half`, L.high);
+      t.clearPointer("mid");
+      if (lo <= hi) t.setPointer("hi", hi);
+      else t.clearPointer("hi");
+      t.setVars({ lo, hi });
+      t.note(`${oldMid} > ${target} — discard the right half`, L.high);
     }
   }
 

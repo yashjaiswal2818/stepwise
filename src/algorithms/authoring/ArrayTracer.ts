@@ -17,6 +17,8 @@ export class ArrayTracer extends BaseTracer {
   private aux: Cell[] = [];
   private auxLabel?: string;
   private auxCounter = 0;
+  /** Lessons only: cell ids whose state survives the per-step reset (see `mark`). */
+  private held = new Set<string>();
 
   constructor(values: (number | string)[]) {
     super();
@@ -65,6 +67,46 @@ export class ArrayTracer extends BaseTracer {
   }
   clearRegion(id: string): this {
     this.regions = this.regions.filter((r) => r.id !== id);
+    return this;
+  }
+
+  // ---- lesson authoring: paint / fill without committing (no snapshot) ----
+  /**
+   * Set cell states WITHOUT committing a step, so one snapshot can carry several
+   * different states (an `active` pointer with a `visited` trail behind it).
+   * `hold: true` opts those cells out of the post-commit reset in `snap`, which
+   * lets a lesson hold a highlight while the narration talks around it for
+   * several beats. `final` is already permanent and is unaffected.
+   */
+  mark(indices: number[], state: ElementState, opts?: { hold?: boolean }): this {
+    for (const i of indices) {
+      const c = this.cells[i];
+      if (!c) continue;
+      c.state = state;
+      if (opts?.hold) this.held.add(c.id);
+      else this.held.delete(c.id);
+    }
+    return this;
+  }
+
+  /** Release held cells (all of them if no indices given) back to baseline. */
+  release(indices?: number[]): this {
+    const ids = indices
+      ? indices.map((i) => this.cells[i]?.id).filter((x): x is string => !!x)
+      : [...this.held];
+    for (const id of ids) {
+      this.held.delete(id);
+      const c = this.cells.find((x) => x.id === id);
+      if (c && c.state !== "final") c.state = "default";
+    }
+    return this;
+  }
+
+  /** Write a value into a slot without committing — for lessons that fill an
+   *  array that starts out as empty boxes. */
+  setValue(i: number, v: number | string): this {
+    const c = this.cells[i];
+    if (c) c.value = v;
     return this;
   }
 
@@ -147,7 +189,8 @@ export class ArrayTracer extends BaseTracer {
       aux: this.aux.length ? { cells: this.aux.map((c) => ({ ...c })), label: this.auxLabel } : undefined,
     };
     this.commit(scene, narration, codeLines, op, { ...this.vars });
-    // Reset transient highlights back to baseline; 'final' persists.
-    for (const c of this.cells) if (c.state !== "final") c.state = "default";
+    // Reset transient highlights back to baseline; 'final' persists, and cells a
+    // lesson explicitly `mark(..., { hold: true })` persist until `release`d.
+    for (const c of this.cells) if (c.state !== "final" && !this.held.has(c.id)) c.state = "default";
   }
 }

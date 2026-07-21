@@ -43,6 +43,9 @@ export interface GEdge extends ElementBase {
   target: string;
   directed?: boolean;
   weight?: number;
+  /** Binary trees: which child this edge leads to. Lets the layout offset an
+   *  only-child so a left-only and a right-only child do not draw identically. */
+  side?: "left" | "right";
 }
 /** A labelled pointer (i, j, low, high, slow, fast, pivot) aimed at an element id. */
 export interface Pointer {
@@ -183,6 +186,10 @@ export interface Step {
   op?: StepOp;
   /** Scalar watch values shown in the Watch panel (i, j, sum, low, high…). */
   vars?: Record<string, string | number>;
+  /** Lessons only: how many lines of `code` exist yet — the code panel shows the
+   *  program only as far as it has been written, so a beginner watches code
+   *  appear line by line. Absent on problem traces (the whole source is shown). */
+  linesWritten?: number;
 }
 
 export type Lang = "js" | "py" | "c";
