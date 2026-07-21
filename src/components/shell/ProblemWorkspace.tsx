@@ -81,12 +81,17 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
   // Engagement: register a daily visit, and mark solved once the run is stepped to the end.
   const markSolved = useProgress((s) => s.markSolved);
   const registerActivity = useProgress((s) => s.registerActivity);
+  const setLastVisited = useProgress((s) => s.setLastVisited);
   const atEnd = usePlayer((s) =>
     s.trace ? s.trace.steps.length > 1 && s.index >= s.trace.steps.length - 1 : false,
   );
   useEffect(() => {
     registerActivity();
   }, [registerActivity]);
+  // Remember this as the place to "jump back in" from /learn.
+  useEffect(() => {
+    setLastVisited({ href: `/problem/${problem.slug}`, title: problem.title });
+  }, [problem.slug, problem.title, setLastVisited]);
   useEffect(() => {
     if (atEnd) markSolved(exampleId);
   }, [atEnd, exampleId, markSolved]);
@@ -118,12 +123,6 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
       <div className="min-h-0 flex-1 p-4">
         <CodePanel />
       </div>
-      {/* Narration and the variables change on every step, so they stay pinned
-          below the code instead of scrolling away with it. */}
-      <div className="shrink-0">
-        <Narration />
-        <WatchPanel />
-      </div>
     </div>
   );
 
@@ -154,9 +153,13 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
       <div className="min-h-0 flex-1">
         <VisualizationCanvas />
       </div>
-      {/* The transport is the hero control — it never scrolls and never shrinks.
-          Only the canvas above it flexes. */}
+      {/* The step's plain-English caption and its variables sit WITH the canvas —
+          where the eye already is — reading like a figure caption beneath it. The
+          transport is the hero control and stays pinned to the very bottom; only
+          the canvas above this group flexes. */}
       <div className="shrink-0">
+        <Narration />
+        <WatchPanel />
         <Legend states={legend} />
         <PlayerControls />
       </div>
@@ -172,7 +175,7 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
         className="flex-1"
         left={left}
         right={right}
-        leftLabel="Lesson"
+        leftLabel="Code"
         rightLabel="Visualization"
         scrollPanes={false}
       />

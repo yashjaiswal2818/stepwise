@@ -48,9 +48,14 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
   // so this deliberately does NOT call markSolved — a lesson is not a problem and
   // must not inflate the solved count the Completionist badge reads.
   const registerActivity = useProgress((s) => s.registerActivity);
+  const setLastVisited = useProgress((s) => s.setLastVisited);
   useEffect(() => {
     registerActivity();
   }, [registerActivity]);
+  // Remember this lesson as the place to "jump back in" from /learn.
+  useEffect(() => {
+    setLastVisited({ href: `/learn/${meta.structure}`, title: meta.title });
+  }, [meta.structure, meta.title, setLastVisited]);
 
   const left = (
     <div className="flex h-full min-h-0 flex-col">
@@ -69,10 +74,6 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
       <div className="min-h-0 flex-1 p-4">
         <CodePanel />
       </div>
-      <div className="shrink-0">
-        <Narration />
-        <WatchPanel />
-      </div>
     </div>
   );
 
@@ -81,7 +82,10 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
       <div className="min-h-0 flex-1">
         <VisualizationCanvas />
       </div>
+      {/* Caption + variables read WITH the canvas, above the fixed transport. */}
       <div className="shrink-0">
+        <Narration />
+        <WatchPanel />
         <Legend states={legend} />
         <PlayerControls />
       </div>
@@ -93,8 +97,8 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
       className="flex-1"
       left={left}
       right={right}
-      leftLabel="Lesson"
-      rightLabel="Visualization"
+      leftLabel="Code"
+      rightLabel="Walkthrough"
       scrollPanes={false}
     />
   );

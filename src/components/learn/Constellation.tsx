@@ -20,7 +20,6 @@ import {
   GitBranch,
   Waypoints,
   Rows3,
-  Flame,
   Check,
   Plus,
   Minus,
@@ -29,10 +28,9 @@ import {
   BookOpen,
 } from "lucide-react";
 import { NODES, EDGES, NODE_BY_ID, NEIGHBORS, STRUCTURE_CHILDREN, VIEW, type CNode } from "@/curriculum/constellation";
-import { PROBLEMS } from "@/curriculum/catalog";
 import { STRUCTURES } from "@/curriculum/structures";
 import { getLessonMeta } from "@/curriculum/lesson-catalog";
-import { BADGES } from "@/engagement/badges";
+import { LearnLead } from "./LearnLead";
 import { DUR, EASE_OUT } from "@/engine/canvas/motion";
 import { useProgress } from "@/engagement/useProgress";
 import { useMounted } from "@/lib/useMounted";
@@ -61,7 +59,6 @@ const ZOOM_MAX = 1.9;
 
 export function Constellation() {
   const solved = useProgress((s) => s.solved);
-  const streak = useProgress((s) => s.streak);
   const mounted = useMounted();
   // prefers-reduced-motion: the map's staggered draw-in and node pop are the
   // biggest motion on the surface. Under reduced motion they resolve instantly
@@ -74,15 +71,12 @@ export function Constellation() {
     if (node?.kind === "structure") return (STRUCTURE_CHILDREN[id] ?? []).some((c) => solved.includes(c));
     return solved.includes(id);
   };
-  const exploredCount = mounted ? PROBLEMS.filter((p) => solved.includes(p.slug)).length : 0;
 
   /** How far through one structure hub the learner is — drives the hub's ring. */
   const hubProgress = (id: string) => {
     const children = STRUCTURE_CHILDREN[id] ?? [];
     return { done: mounted ? children.filter((c) => solved.includes(c)).length : 0, total: children.length };
   };
-
-  const badgeCtx = { solved: mounted ? solved.length : 0, streak: mounted ? streak : 0 };
 
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -209,57 +203,10 @@ export function Constellation() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-5 py-4 sm:px-8">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-fg text-balance sm:text-2xl">Start anywhere.</h1>
-          <p className="mt-1 max-w-md text-sm leading-relaxed text-fg-muted sm:max-w-xl sm:text-sm">
-            Not a syllabus — a map. Every structure and problem, wired by what builds on what. Follow a thread that
-            pulls you in.
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm">
-              <span className="font-semibold text-fg">{exploredCount}</span>
-              <span className="text-fg-muted">/{PROBLEMS.length} explored</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5">
-              {/* A streak is not an algorithm state, so it is not saturated.
-                  "Lit" is contrast: text-fg when running, faint when not. */}
-              <Flame className={cn("size-4", mounted && streak > 0 ? "text-fg" : "text-fg-faint")} aria-hidden />
-              <span className="text-sm font-semibold text-fg">{mounted ? streak : 0}</span>
-              <span className="sr-only">day streak</span>
-            </div>
-          </div>
-
-          {/* Ported from the now-deleted LearnPath, which was the only thing
-              rendering BADGES. Earned reads through elevation, border weight and
-              a check — not a colored fill. */}
-          <ul aria-label="Badges" className="flex flex-wrap gap-1.5 sm:justify-end">
-            {BADGES.map((b) => {
-              const earned = b.earned(badgeCtx);
-              return (
-                <li
-                  key={b.id}
-                  title={b.desc}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium",
-                    "transition-colors duration-[var(--duration-base)]",
-                    earned ? "border-line-strong bg-surface-3 text-fg" : "border-line bg-surface text-fg-muted",
-                  )}
-                >
-                  {earned && <Check className="size-3" aria-hidden />}
-                  {b.label}
-                  <span className="sr-only">
-                    {" "}
-                    — {earned ? "earned" : "not yet earned"}. {b.desc}.
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
+      {/* Replaces the old static "Start anywhere" headline + flat badge list with
+          a per-learner lead: resume, progress, and the next badge to chase. The
+          map keeps the whole viewport below it. */}
+      <LearnLead />
 
       <div
         ref={viewportRef}
