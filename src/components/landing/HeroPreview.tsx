@@ -1,146 +1,246 @@
 "use client";
 
-import { motion } from "motion/react";
-import { RotateCcw, SkipBack, Play, SkipForward } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { MotionConfig, motion, useReducedMotion } from "motion/react";
+import { ArrowUpRight, Pause, Play } from "lucide-react";
+import type { Trace } from "@/engine/types";
+import { ArrayView } from "@/engine/canvas/renderers/ArrayView";
+import { SPRING } from "@/engine/canvas/motion";
+import { tokenizeLines, type TokenClass } from "@/engine/code/highlight";
+import { interactive } from "@/design-system/ui/interaction";
+import { cn } from "@/lib/utils";
 
-const kw = "text-[#c4b5fd]";
-const fn = "text-[#7dd3fc]";
-const num = "text-[#fbbf24]";
-const pn = "text-fg-faint";
+/**
+ * The landing-page demo. This is the real engine: a real `Trace` built by the
+ * real tracer, drawn by the real `ArrayView`, with the real source and the real
+ * narration. Nothing here is a mock — every number on screen is read off the
+ * trace, and the code highlight moves because `step.codeLines` moves.
+ *
+ * WHY LOCAL STATE INSTEAD OF THE PLAYER STORE
+ * `usePlayer` is a module-level Zustand singleton with a single `index`, and
+ * `VisualizationCanvas` takes no props — it reads that singleton. Driving it
+ * from here would mean the landing page owning the store the workspace owns:
+ * an autoplaying loop writing `index`/`isPlaying` on every tick, left behind on
+ * client-side navigation to /problem/[slug], and unable to host a second
+ * preview without the two fighting over one index. The store also stops at the
+ * last step by design (`next()` clears `isPlaying`), so looping would mean
+ * extra writes into shared state. So the hero keeps its own index and renders
+ * the renderer directly from `trace.steps[i].scene`.
+ */
 
-/* right-side canvas geometry */
-const W = 30, GAP = 8, N = 7, START = 21, Y = 40, H = 42;
-const slot = (i: number) => START + i * (W + GAP);
-const VALS = [5, 2, 8, 3, 9, 6, 7];
+/** Steps per second — the workspace player's default, so the landing page runs
+ *  the algorithm at exactly the pace the product does. */
+const STEPS_PER_SECOND = 1.5;
+const STEP_MS = 1000 / STEPS_PER_SECOND;
+/** A beat held on the final frame so "sorted" registers before the run loops. */
+const HOLD_MS = 1600;
 
-function Cell({ i, kind }: { i: number; kind: "idle" | "final" }) {
-  const fill = kind === "final" ? "color-mix(in oklab, var(--state-final) 16%, var(--surface))" : "var(--state-default)";
-  const stroke = kind === "final" ? "var(--state-final)" : "var(--state-default-border)";
-  const tc = kind === "final" ? "var(--state-final)" : "var(--state-default-fg)";
-  return (
-    <g>
-      <rect x={slot(i)} y={Y} width={W} height={H} rx={8} fill={fill} stroke={stroke} strokeWidth={1.4} />
-      <text x={slot(i) + W / 2} y={Y + 27} textAnchor="middle" fontSize="16" fontWeight="600" fill={tc} fontFamily="var(--font-geist-mono)">{VALS[i]}</text>
-    </g>
-  );
+/* Mirrors the token map in engine/code/CodePanel.tsx — the same `--code-*`
+   variables, so the preview and the workspace panel highlight identically. */
+const COL: Record<TokenClass, string> = {
+  kw: "var(--code-kw)",
+  fn: "var(--code-fn)",
+  num: "var(--code-num)",
+  str: "var(--code-str)",
+  com: "var(--code-com)",
+  punct: "var(--code-punct)",
+  var: "var(--code-var)",
+  ws: "inherit",
+};
+
+/**
+ * The frame shown to a visitor who prefers reduced motion. Derived, not picked:
+ * the last swap in the run is the most informative single frame in the trace —
+ * two cells mid-move, a sorted tail already locked in, untouched cells ahead of
+ * it, and the `j` pointer. Four states at once, so the encoding still teaches
+ * something without a single pixel moving.
+ */
+function stillFrameIndex(trace: Trace): number {
+  for (let i = trace.steps.length - 1; i >= 0; i--) {
+    if (trace.steps[i].op === "swap") return i;
+  }
+  return Math.max(0, Math.floor((trace.steps.length - 1) / 2));
 }
 
-function SwapCell({ from, to, delay }: { from: number; to: number; delay: number }) {
-  const a = slot(from), b = slot(to);
-  const i = from;
-  return (
-    <motion.g
-      animate={{ x: [0, b - a, b - a, 0], y: [0, -12, 0, 0] }}
-      transition={{ duration: 3.6, times: [0, 0.35, 0.7, 1], ease: "easeInOut", repeat: Infinity, repeatDelay: 0.4, delay }}
-    >
-      <rect x={a} y={Y} width={W} height={H} rx={8} fill="color-mix(in oklab, var(--state-swap) 20%, var(--surface))" stroke="var(--state-swap)" strokeWidth={1.8} />
-      <text x={a + W / 2} y={Y + 27} textAnchor="middle" fontSize="16" fontWeight="700" fill="var(--state-swap)" fontFamily="var(--font-geist-mono)">{VALS[i]}</text>
-    </motion.g>
-  );
-}
+export function HeroPreview({ trace }: { trace: Trace }) {
+  const reduced = useReducedMotion() ?? false;
+  const total = trace.steps.length;
+  const lastIndex = Math.max(total - 1, 0);
+  const still = useMemo(() => stillFrameIndex(trace), [trace]);
 
-function HeroCanvas() {
-  return (
-    <svg viewBox="0 0 300 108" className="h-full w-full" fill="none">
-      {/* compare bracket over the swapping pair */}
-      <motion.rect
-        x={slot(2) - 4} y={Y - 5} width={W * 2 + GAP + 8} height={H + 10} rx={11}
-        fill="color-mix(in oklab, var(--state-compare) 8%, transparent)" stroke="var(--state-compare)" strokeWidth={1.4} strokeDasharray="5 4"
-        animate={{ opacity: [0.35, 0.9, 0.35] }}
-        transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
-      />
-      <Cell i={0} kind="idle" />
-      <Cell i={1} kind="idle" />
-      <SwapCell from={2} to={3} delay={0} />
-      <SwapCell from={3} to={2} delay={0} />
-      <Cell i={4} kind="idle" />
-      <Cell i={5} kind="final" />
-      <Cell i={6} kind="final" />
-      {/* index ticks */}
-      {VALS.map((_, i) => (
-        <text key={i} x={slot(i) + W / 2} y={Y + H + 15} textAnchor="middle" fontSize="9" fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">{i}</text>
-      ))}
-    </svg>
-  );
-}
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [onScreen, setOnScreen] = useState(false);
+  const frameRef = useRef<HTMLDivElement>(null);
 
-const CODE: React.ReactNode[] = [
-  <><span className={kw}>function</span> <span className={fn}>bubbleSort</span><span className={pn}>(</span>a<span className={pn}>) {"{"}</span></>,
-  <><span className={kw}>for</span> <span className={pn}>(</span><span className={kw}>let</span> n = a.length; n {">"} <span className={num}>1</span>; n--<span className={pn}>) {"{"}</span></>,
-  <><span className={kw}>for</span> <span className={pn}>(</span><span className={kw}>let</span> j = <span className={num}>0</span>; j {"<"} n-<span className={num}>1</span>; j++<span className={pn}>) {"{"}</span></>,
-  <><span className={kw}>if</span> <span className={pn}>(</span>a<span className={pn}>[</span>j<span className={pn}>]</span> {">"} a<span className={pn}>[</span>j+<span className={num}>1</span><span className={pn}>])</span></>,
-  <><span className={fn}>swap</span><span className={pn}>(</span>a, j, j+<span className={num}>1</span><span className={pn}>);</span></>,
-  <span className={pn}>{"}"}</span>,
-  <span className={pn}>{"}"}</span>,
-  <><span className={kw}>return</span> a<span className={pn}>;</span></>,
-  <span className={pn}>{"}"}</span>,
-];
-const INDENT = [0, 1, 2, 3, 4, 2, 1, 1, 0];
-const ACTIVE = 3;
+  // Pause while scrolled out of view — a demo nobody is looking at should not
+  // be spending frames.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setOnScreen(true);
+      return;
+    }
+    const io = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting), {
+      threshold: 0.2,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
-export function HeroPreview() {
+  const running = playing && onScreen && !reduced;
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setTimeout(
+      () => setIndex((i) => (i >= lastIndex ? 0 : i + 1)),
+      index >= lastIndex ? HOLD_MS : STEP_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [running, index, lastIndex]);
+
+  // Which frame is on screen. Reduced motion parks on the meaningful frame
+  // rather than frame 0, the one frame in the trace where nothing has happened
+  // yet — derived during render, so there is no state to keep in sync.
+  const shown = reduced ? still : index;
+  const step = trace.steps[shown];
+  const scene = step.scene;
+
+  // Everything below is read off the trace. No literals.
+  const digits = String(total).length;
+  const counter = `${String(shown + 1).padStart(digits, "0")} / ${total}`;
+  const progress = lastIndex > 0 ? (shown / lastIndex) * 100 : 0;
+  const watch = Object.entries(step.vars ?? {})
+    .map(([k, v]) => `${k} ${v}`)
+    .join("  ·  ");
+
+  const codeLines = useMemo(() => tokenizeLines(trace.code, "js"), [trace.code]);
+  const activeLines = new Set(step.codeLines);
+  const cursorLine = step.codeLines.length ? Math.min(...step.codeLines) : -1;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-lg)]">
-      {/* titlebar */}
-      <div className="flex items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5">
-        <div className="flex gap-1.5">
-          <span className="size-3 rounded-full bg-[#ff5f57]" />
-          <span className="size-3 rounded-full bg-[#febc2e]" />
-          <span className="size-3 rounded-full bg-[#28c840]" />
+    <div>
+      {/* --radius-2xl is reserved for the hero frame. Elevation is the hairline
+          plus the inset highlight — this panel sits on the page, it does not
+          float above it, so it gets --lift and not a drop shadow. */}
+      <div
+        ref={frameRef}
+        className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--lift)]"
+      >
+        <div className="flex items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5">
+          <h2 className="text-sm font-medium text-fg">{trace.title}</h2>
+          <span className="hidden font-mono text-2xs text-fg-faint sm:inline">
+            {trace.exampleId}.{trace.language}
+          </span>
+          <span className="ml-auto shrink-0 font-mono text-2xs text-fg-muted">
+            <span className="text-fg-faint">step</span> {counter}
+          </span>
         </div>
-        <div className="ml-1 flex items-center gap-2 rounded-md bg-surface px-2.5 py-1 text-xs text-fg-muted">
-          <span className="font-mono">bubble_sort.ts</span>
+
+        {/* One image-like unit: no interactive descendants, one stable label, so
+            assistive tech is not read a new narration twice a second. The
+            narration and controls live outside it. */}
+        <div
+          role="img"
+          aria-label={`Live visualization of ${trace.title}, running one step at a time.`}
+          className="grid md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]"
+        >
+          <div className="hidden overflow-x-auto border-r border-line bg-elevated py-3 md:block">
+            {codeLines.map((tokens, i) => {
+              const n = i + 1;
+              const on = activeLines.has(n);
+              const cursor = "absolute inset-y-0 left-0 w-0.5 bg-accent";
+              return (
+                <div
+                  key={n}
+                  className={cn("relative flex gap-3 px-3 font-mono text-xs", on && "bg-surface-3")}
+                >
+                  {n === cursorLine &&
+                    (reduced ? (
+                      <span className={cursor} />
+                    ) : (
+                      <motion.span layoutId="hero-code-cursor" transition={SPRING} className={cursor} />
+                    ))}
+                  <span className="w-4 shrink-0 select-none text-right text-fg-faint">{n}</span>
+                  <code className="whitespace-pre">
+                    {tokens.map((t, j) => (
+                      <span key={j} style={{ color: COL[t.cls] }}>
+                        {t.text}
+                      </span>
+                    ))}
+                  </code>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-base p-4">
+            <div className="h-44 w-full sm:h-48">
+              {scene.kind === "array" && (
+                <MotionConfig transition={SPRING} reducedMotion="user">
+                  <ArrayView scene={scene} />
+                </MotionConfig>
+              )}
+            </div>
+          </div>
         </div>
-        <span className="ml-auto rounded-full border border-easy/30 bg-easy/10 px-2 py-0.5 text-[11px] font-semibold text-easy">Easy</span>
+
+        <p className="flex min-h-14 items-center gap-2 border-t border-line px-4 py-2.5 font-mono text-sm text-fg">
+          <span aria-hidden="true" className="shrink-0 text-fg-faint">
+            →
+          </span>
+          {step.narration}
+        </p>
+
+        <div className="flex items-center gap-3 border-t border-line bg-surface px-4 py-2.5">
+          {!reduced && (
+            <button
+              type="button"
+              onClick={() => setPlaying((p) => !p)}
+              aria-label={playing ? `Pause ${trace.title}` : `Play ${trace.title}`}
+              /* Circular like the workspace's transport button, so it reads as
+                 the same control. Focus / press / disabled come from the shared
+                 interaction primitive rather than being re-invented here. */
+              className={cn(
+                "grid size-8 shrink-0 cursor-pointer place-items-center rounded-full",
+                "bg-accent text-accent-fg shadow-[var(--lift-hi)] hover:scale-105",
+                interactive,
+              )}
+            >
+              {playing ? (
+                <Pause className="size-3.5 fill-current" />
+              ) : (
+                <Play className="size-3.5 translate-x-px fill-current" />
+              )}
+            </button>
+          )}
+          <div
+            role="progressbar"
+            aria-label={`${trace.title} run position`}
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-valuenow={shown + 1}
+            className="relative h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3"
+          >
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-[var(--duration-step)] ease-step"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <span className="shrink-0 font-mono text-2xs text-fg-muted">{watch}</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_1.1fr]">
-        {/* code */}
-        <div className="hidden border-r border-line bg-elevated py-3 md:block">
-          {CODE.map((line, i) => {
-            const active = i === ACTIVE;
-            return (
-              <div
-                key={i}
-                className={`relative flex items-center gap-3 py-[3px] pr-3 font-mono text-[12.5px] leading-relaxed ${active ? "bg-brand-soft" : ""}`}
-              >
-                {active && <motion.span layoutId="hero-code-cursor" className="absolute left-0 top-0 h-full w-[2.5px] bg-brand" />}
-                <span className="w-7 shrink-0 select-none text-right text-fg-faint/60">{i + 1}</span>
-                <span style={{ paddingLeft: INDENT[i] * 12 }} className="text-fg">{line}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* canvas + controls */}
-        <div className="bg-grid flex flex-col">
-          <div className="flex-1 px-3 pt-4">
-            <HeroCanvas />
-          </div>
-          {/* narration */}
-          <div className="px-4 pb-1">
-            <p className="font-mono text-[11px] text-fg-muted">
-              <span className="text-state-swap">swap</span> a[2] and a[3] &nbsp;·&nbsp; 8 {">"} 3
-            </p>
-          </div>
-          {/* controls */}
-          <div className="flex items-center gap-3 border-t border-line px-4 py-2.5">
-            <div className="flex items-center gap-1 text-fg-muted">
-              <RotateCcw className="size-4" />
-              <SkipBack className="size-4" />
-              <span className="mx-0.5 grid size-8 place-items-center rounded-full bg-brand text-brand-fg shadow-[var(--shadow-glow)]">
-                <Play className="size-4 translate-x-px fill-current" />
-              </span>
-              <SkipForward className="size-4" />
-            </div>
-            <span className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">1.5×</span>
-            <div className="relative mx-1 h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
-              <div className="absolute inset-y-0 left-0 w-[30%] rounded-full bg-brand" />
-            </div>
-            <span className="shrink-0 font-mono text-[11px] text-fg-muted">Step 7 / 24</span>
-          </div>
-        </div>
-      </div>
+      <p className="mt-3 text-sm text-fg-muted">
+        <Link
+          href={`/problem/${trace.exampleId}`}
+          className="group inline-flex items-center gap-1.5 font-medium text-fg-muted transition-colors duration-[var(--duration-fast)] hover:text-fg"
+        >
+          Take the controls — scrub, step back, change the input
+          <ArrowUpRight className="size-3.5 transition-transform duration-[var(--duration-fast)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
+      </p>
     </div>
   );
 }

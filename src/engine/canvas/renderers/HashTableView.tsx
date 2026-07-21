@@ -2,12 +2,12 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { HashScene, ElementState } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
-import { SPRING } from "../motion";
+import { stateColor, stateFill } from "@/design-system/state-palette";
+import { DUR, EASE_OUT, SPRING } from "../motion";
 
 const strokeFor = (s: ElementState) => (s === "default" ? "var(--state-default-border)" : stateColor(s));
 const textFor = (s: ElementState) => (s === "default" ? "var(--state-default-fg)" : "var(--state-ink)");
-const fillFor = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateColor(s));
+const fillFor = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateFill(s));
 
 const VB_W = 460;
 const VB_H = 300;
@@ -41,7 +41,7 @@ export function HashTableView({ scene }: { scene: HashScene }) {
       {input && (
         <>
           {input.label && (
-            <text x={inStartX} y={14} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+            <text x={inStartX} y={14} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-mono)">
               {input.label}
             </text>
           )}
@@ -53,8 +53,8 @@ export function HashTableView({ scene }: { scene: HashScene }) {
                 width={IN_W}
                 height={IN_W}
                 rx={7}
-                className="transition-[fill,stroke] duration-200"
-                style={{ fill: stateColor(c.state), stroke: strokeFor(c.state) }}
+                className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+                style={{ fill: stateFill(c.state), stroke: strokeFor(c.state) }}
                 strokeWidth={1.4}
               />
               <text
@@ -63,13 +63,13 @@ export function HashTableView({ scene }: { scene: HashScene }) {
                 textAnchor="middle"
                 fontSize={15}
                 fontWeight={600}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: textFor(c.state) }}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {c.value}
               </text>
-              <text x={inX(c.index) + IN_W / 2} y={IN_Y + IN_W + 12} textAnchor="middle" fontSize={9} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+              <text x={inX(c.index) + IN_W / 2} y={IN_Y + IN_W + 12} textAnchor="middle" fontSize={9} fill="var(--text-faint)" fontFamily="var(--font-mono)">
                 {c.index}
               </text>
             </g>
@@ -80,26 +80,26 @@ export function HashTableView({ scene }: { scene: HashScene }) {
               animate={{ x: inX(input.pointer) + IN_W / 2 }}
               transition={SPRING}
               d={`M0 ${IN_Y - 3} L-6 ${IN_Y - 12} L6 ${IN_Y - 12} Z`}
-              fill="var(--brand)"
+              fill="var(--state-active)"
             />
           )}
         </>
       )}
 
       <rect x={MAP_X} y={MAP_Y} width={MAP_W} height={MAP_H} rx={14} fill="var(--surface)" stroke="var(--border)" />
-      <text x={MAP_X + 16} y={MAP_Y + 24} fontSize={11} fill="var(--text-muted)" fontFamily="var(--font-geist-mono)">
+      <text x={MAP_X + 16} y={MAP_Y + 24} fontSize={11} fill="var(--text-muted)" fontFamily="var(--font-mono)">
         {scene.mapLabel ?? "map"}
       </text>
       {scene.lookupKey && (
         <>
-          <rect x={MAP_X + MAP_W - 104} y={MAP_Y + 10} width={88} height={20} rx={6} fill="var(--brand-soft)" stroke="var(--brand)" />
-          <text x={MAP_X + MAP_W - 60} y={MAP_Y + 24} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--brand-strong)" fontFamily="var(--font-geist-mono)">
+          <rect x={MAP_X + MAP_W - 104} y={MAP_Y + 10} width={88} height={20} rx={6} fill="var(--state-compare)" stroke="var(--state-compare)" />
+          <text x={MAP_X + MAP_W - 60} y={MAP_Y + 24} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--state-ink)" fontFamily="var(--font-mono)">
             need {scene.lookupKey}
           </text>
         </>
       )}
       {scene.entries.length === 0 && (
-        <text x={MAP_X + MAP_W / 2} y={MAP_Y + MAP_H / 2 + 6} textAnchor="middle" fontSize={11} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+        <text x={MAP_X + MAP_W / 2} y={MAP_Y + MAP_H / 2 + 6} textAnchor="middle" fontSize={11} fill="var(--text-faint)" fontFamily="var(--font-mono)">
           empty
         </text>
       )}
@@ -111,13 +111,13 @@ export function HashTableView({ scene }: { scene: HashScene }) {
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1, x: px(idx), y: py(idx) }}
             exit={{ opacity: 0, scale: 0.7 }}
-            transition={{ x: SPRING, y: SPRING, opacity: { duration: 0.2 }, scale: { duration: 0.2 } }}
+            transition={{ x: SPRING, y: SPRING, opacity: { duration: DUR.base, ease: EASE_OUT }, scale: { duration: DUR.base, ease: EASE_OUT } }}
           >
             <rect
               width={PILL_W}
               height={PILL_H}
               rx={8}
-              className="transition-[fill,stroke] duration-200"
+              className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
               style={{ fill: fillFor(e.state), stroke: strokeFor(e.state) }}
               strokeWidth={1.4}
             />
@@ -127,9 +127,9 @@ export function HashTableView({ scene }: { scene: HashScene }) {
               textAnchor="middle"
               fontSize={13}
               fontWeight={600}
-              className="transition-[fill] duration-200"
+              className="transition-[fill] duration-[var(--duration-base)] ease-out"
               style={{ fill: textFor(e.state) }}
-              fontFamily="var(--font-geist-mono)"
+              fontFamily="var(--font-mono)"
             >
               {e.key} → {e.value}
             </text>

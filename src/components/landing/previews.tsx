@@ -33,7 +33,7 @@ function ArraysPreview() {
       {vals.map((v, i) => (
         <g key={i}>
           <rect x={xOf(i)} y={y} width={w} height={32} rx={7} fill="var(--state-default)" stroke="var(--state-default-border)" />
-          <text x={xOf(i) + w / 2} y={y + 21} textAnchor="middle" fontSize="14" fontWeight="600" fill="var(--state-default-fg)" fontFamily="var(--font-geist-mono)">{v}</text>
+          <text x={xOf(i) + w / 2} y={y + 21} textAnchor="middle" fontSize="14" fontWeight="600" fill="var(--state-default-fg)" fontFamily="var(--font-mono)">{v}</text>
         </g>
       ))}
       <motion.rect
@@ -93,9 +93,9 @@ function LinkedListPreview() {
             </g>
             <line x1={x + DATA_W} y1={topY} x2={x + DATA_W} y2={topY + BOX_H} stroke="var(--state-swap)" strokeWidth={1} opacity={0.5} />
             <rect x={x} y={topY} width={BOX_W} height={BOX_H} rx={6} fill="none" stroke="var(--state-swap)" strokeWidth={1.5} />
-            <text x={x + DATA_W / 2} y={cy + 4.5} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text)" fontFamily="var(--font-geist-mono)">{v}</text>
+            <text x={x + DATA_W / 2} y={cy + 4.5} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text)" fontFamily="var(--font-mono)">{v}</text>
             {isLast ? (
-              <text x={x + DATA_W + PTR_W / 2} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-muted)" fontFamily="var(--font-geist-mono)">∅</text>
+              <text x={x + DATA_W + PTR_W / 2} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-muted)" fontFamily="var(--font-mono)">∅</text>
             ) : (
               <circle cx={x + DATA_W + PTR_W / 2} cy={cy} r={2.6} fill="var(--border-strong)" />
             )}
@@ -117,25 +117,35 @@ function LinkedListPreview() {
 }
 
 /* --------------------------------------------------------------- Stacks */
+/* Positions are derived downward from the base line so the tower can only ever
+   grow into space the frame actually has. Doing it the other way — a resting
+   height plus a hand-tuned offset for the incoming block — put the base line at
+   y=121 in a 120-tall viewBox (invisible) and landed the pushed block on top of
+   the two below it, so a preview of LIFO showed frames occupying one slot. */
 function StacksPreview() {
-  const bw = 74, bx = (200 - bw) / 2, bh = 22, baseY = 96;
-  const resting = [0, 1, 2].map((i) => baseY - i * (bh + 4));
+  const bw = 74, bx = (200 - bw) / 2, bh = 22, gap = 4;
+  const BASE_Y = 110;
+  /** Top edge of the i-th frame from the bottom; 3 units of clearance off the base. */
+  const topOf = (i: number) => BASE_Y - 3 - bh - i * (bh + gap);
+  const resting = [0, 1, 2].map(topOf);
+  const pushedY = topOf(3); // the incoming frame lands on TOP of the three below
+  const offscreenY = -bh - 8; // clear of the frame before the drop starts
   return (
     <Frame>
-      <line x1={bx - 8} y1={baseY + bh + 3} x2={bx + bw + 8} y2={baseY + bh + 3} stroke="var(--border-strong)" strokeWidth={2} strokeLinecap="round" />
+      <line x1={bx - 8} y1={BASE_Y} x2={bx + bw + 8} y2={BASE_Y} stroke="var(--border-strong)" strokeWidth={2} strokeLinecap="round" />
       {resting.map((ry, i) => (
         <g key={i}>
           <rect x={bx} y={ry} width={bw} height={bh} rx={6} fill="var(--surface-2)" stroke="var(--border-strong)" />
-          <text x={200 / 2} y={ry + 15} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text-muted)" fontFamily="var(--font-geist-mono)">{[12, 7, 5][i]}</text>
+          <text x={200 / 2} y={ry + 15} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text-muted)" fontFamily="var(--font-mono)">{[12, 7, 5][i]}</text>
         </g>
       ))}
       <motion.g
-        initial={{ y: -34, opacity: 0 }}
-        animate={{ y: [-34, baseY - 3 * (bh + 4) + 34, baseY - 3 * (bh + 4) + 34, -34], opacity: [0, 1, 1, 0] }}
+        initial={{ y: offscreenY, opacity: 0 }}
+        animate={{ y: [offscreenY, pushedY, pushedY, offscreenY], opacity: [0, 1, 1, 0] }}
         transition={loop({ duration: 2.6, times: [0, 0.35, 0.75, 1], repeatDelay: 0.2 })}
       >
         <rect x={bx} y={0} width={bw} height={bh} rx={6} fill="color-mix(in oklab, var(--state-active) 20%, var(--surface))" stroke="var(--state-active)" strokeWidth={1.5} />
-        <text x={200 / 2} y={15} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--state-active)" fontFamily="var(--font-geist-mono)">9</text>
+        <text x={200 / 2} y={15} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--state-active)" fontFamily="var(--font-mono)">9</text>
       </motion.g>
     </Frame>
   );
@@ -158,7 +168,7 @@ function QueuePreview() {
           transition={{ duration: period, ease: "linear", repeat: Infinity, delay: -(i * period) / n }}
         >
           <rect x={0} y={y} width={size} height={size} rx={7} fill="color-mix(in oklab, var(--state-frontier) 16%, var(--surface))" stroke="var(--state-frontier)" strokeWidth={1.4} />
-          <text x={size / 2} y={y + 20} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--state-frontier)" fontFamily="var(--font-geist-mono)">{[1, 2, 3, 4][i]}</text>
+          <text x={size / 2} y={y + 20} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--state-frontier)" fontFamily="var(--font-mono)">{[1, 2, 3, 4][i]}</text>
         </motion.g>
       ))}
     </Frame>
@@ -167,7 +177,11 @@ function QueuePreview() {
 
 /* ----------------------------------------------------------- Hash Table */
 function HashPreview() {
-  const buckets = [28, 76, 124, 172], top = 22, floor = 92;
+  /* `floor` has to leave room for the bucket (22) AND its index label beneath
+     it, inside the 120-tall frame. At 92 the label landed at y=126 and was
+     clipped away entirely — which removed the only thing showing WHICH bucket a
+     key hashed to, the point of the picture. */
+  const buckets = [28, 76, 124, 172], top = 22, floor = 82;
   const keys = [
     { x: buckets[2], v: 7, d: 0 },
     { x: buckets[0], v: 3, d: 0.7 },
@@ -179,15 +193,15 @@ function HashPreview() {
       {buckets.map((bx, i) => (
         <g key={i}>
           <rect x={bx - 15} y={floor} width={30} height={22} rx={5} fill="var(--surface-2)" stroke="var(--border-strong)" />
-          <text x={bx} y={floor + 34} textAnchor="middle" fontSize="9" fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">{i}</text>
+          <text x={bx} y={floor + 34} textAnchor="middle" fontSize="9" fill="var(--text-faint)" fontFamily="var(--font-mono)">{i}</text>
         </g>
       ))}
       {keys.map((k, i) => (
         <motion.circle
           key={i}
           cx={k.x} r={11}
-          fill="color-mix(in oklab, var(--accent-cyan) 20%, var(--surface))"
-          stroke="var(--accent-cyan)" strokeWidth={1.5}
+          fill="color-mix(in oklab, var(--state-visited) 20%, var(--surface))"
+          stroke="var(--state-visited)" strokeWidth={1.5}
           initial={{ cy: top, opacity: 0 }}
           animate={{ cy: [top, floor + 11, floor + 11, top], opacity: [0, 1, 1, 0] }}
           transition={loop({ duration: 2.8, times: [0, 0.45, 0.8, 1], delay: k.d, repeatDelay: 2 })}
@@ -196,7 +210,7 @@ function HashPreview() {
       {keys.map((k, i) => (
         <motion.text
           key={i}
-          x={k.x} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--accent-cyan)" fontFamily="var(--font-geist-mono)"
+          x={k.x} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--state-visited)" fontFamily="var(--font-mono)"
           initial={{ y: top + 4, opacity: 0 }}
           animate={{ y: [top + 4, floor + 15, floor + 15, top + 4], opacity: [0, 1, 1, 0] }}
           transition={loop({ duration: 2.8, times: [0, 0.45, 0.8, 1], delay: k.d, repeatDelay: 2 })}
@@ -235,7 +249,7 @@ function TreePreview() {
               animate={{ opacity: [0, 1, 1, 0] }}
               transition={loop({ duration: 3.6, times: [0, 0.08, 0.85, 1], delay: order * 0.32, repeatDelay: 0.8 })}
             />
-            <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text)" fontFamily="var(--font-geist-mono)">{[4, 2, 6, 1, 3, 5, 7][n.id]}</text>
+            <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text)" fontFamily="var(--font-mono)">{[4, 2, 6, 1, 3, 5, 7][n.id]}</text>
           </g>
         );
       })}
@@ -290,8 +304,8 @@ function RecursionPreview() {
             transition={loop({ duration: 4.2, times: [0, 0.12, 0.5, 0.88, 1], delay: 0.28 + i * 0.28, repeatDelay: 0.4 })}
           >
             <rect x={cx - w / 2} y={22 + i * (fh + 5)} width={w} height={fh} rx={5}
-              fill="color-mix(in oklab, var(--brand) 16%, var(--surface))" stroke="var(--brand-strong)" strokeWidth={1.2} />
-            <text x={cx} y={22 + i * (fh + 5) + 12} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--brand-strong)" fontFamily="var(--font-geist-mono)">f({4 - i})</text>
+              fill="color-mix(in oklab, var(--state-swap) 16%, var(--surface))" stroke="var(--state-swap)" strokeWidth={1.2} />
+            <text x={cx} y={22 + i * (fh + 5) + 12} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--state-swap)" fontFamily="var(--font-mono)">f({4 - i})</text>
           </motion.g>
         );
       })}

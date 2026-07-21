@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import type { GridScene, GridCell, Frame, ElementState } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
+import type { GridScene, GridCell, Frame } from "@/engine/types";
+import { stateColor, stateFill } from "@/design-system/state-palette";
+import { DUR, EASE_OUT } from "../motion";
 
 const CS = 44;
 const GAP = 4;
@@ -16,7 +17,7 @@ const fill = (c: GridCell) => {
     }
     return "var(--surface-2)";
   }
-  return stateColor(c.state);
+  return stateFill(c.state);
 };
 const stroke = (c: GridCell) =>
   c.state === "default" || c.passable === false ? "var(--border)" : stateColor(c.state);
@@ -26,7 +27,7 @@ const ink = (c: GridCell) =>
 function FrontierPanel({ frames, label }: { frames: Frame[]; label?: string }) {
   return (
     <div className="flex w-24 shrink-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/50 p-2">
-      <span className="pb-1 text-center text-[10px] font-medium text-fg-faint">{label ?? "frontier"}</span>
+      <span className="pb-1 text-center text-2xs font-medium text-fg-faint">{label ?? "frontier"}</span>
       <AnimatePresence mode="popLayout">
         {frames.map((f) => (
           <motion.div
@@ -35,14 +36,14 @@ function FrontierPanel({ frames, label }: { frames: Frame[]; label?: string }) {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DUR.base, ease: EASE_OUT }}
             className="rounded-lg border px-2 py-1 text-center font-mono text-xs"
             style={{
               borderColor: f.state === "default" ? "var(--border)" : stateColor(f.state),
               background:
                 f.state === "default"
                   ? "var(--surface-2)"
-                  : `color-mix(in oklab, ${stateColor(f.state)} 16%, var(--surface))`,
+                  : `color-mix(in oklab, ${stateColor(f.state)} var(--state-fill-mix), var(--surface))`,
               color: "var(--text)",
             }}
           >
@@ -72,12 +73,12 @@ export function GridView({ scene }: { scene: GridScene }) {
               width={CS}
               height={CS}
               rx={8}
-              className="transition-[fill,stroke] duration-200"
+              className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
               style={{ fill: fill(c), stroke: stroke(c) }}
               strokeWidth={1.5}
             />
             {c.weight != null && c.weight > 1 && c.passable !== false && (
-              <text x={x(c.c) + 6} y={y(c.r) + 13} fontSize={9} fontWeight={700} fill="var(--state-frontier)" fontFamily="var(--font-geist-mono)">
+              <text x={x(c.c) + 6} y={y(c.r) + 13} fontSize={9} fontWeight={700} fill="var(--state-frontier)" fontFamily="var(--font-mono)">
                 {c.weight}
               </text>
             )}
@@ -88,9 +89,9 @@ export function GridView({ scene }: { scene: GridScene }) {
                 textAnchor="middle"
                 fontSize={14}
                 fontWeight={600}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: ink(c) }}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {c.value}
               </text>

@@ -1,55 +1,106 @@
-import { RotateCcw, SkipBack, Play, SkipForward } from "lucide-react";
-import { StructurePreview } from "@/components/landing/previews";
-import type { StructureSlug } from "@/curriculum/structures";
-import { STATE_META, type ElementState } from "@/design-system/state-palette";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { PROBLEMS } from "@/curriculum/catalog";
+import { STRUCTURES, type StructureSlug } from "@/curriculum/structures";
+import { isImplemented } from "@/algorithms/registry";
+import { DifficultyTag } from "@/design-system/ui/Badge";
+import { focusRing, pressFeedback } from "@/design-system/ui/interaction";
+import { cn } from "@/lib/utils";
 
-const LEGEND: ElementState[] = ["active", "compare", "swap", "visited", "frontier", "final"];
+const MAX_SUGGESTIONS = 5;
 
-/** Phase-1 placeholder: a live looping preview + the real control-bar layout the
-    engine will drive in Phase 2. Structure-specific so every problem feels bespoke. */
+/**
+ * What the canvas pane shows for a catalog problem whose tracer does not exist yet.
+ *
+ * This used to render a looping decorative preview under the caption "step through
+ * it to see every change" — which you could not — above a full transport bar with a
+ * glowing play button, a `1×` speed chip, a hardcoded `w-0` progress fill and a
+ * "Step 0 / 0" counter. None of it was wired to anything. That is the product's
+ * named anti-pattern: depicting the product instead of being it. A learner who
+ * pressed play and got nothing would learn that the controls in this app are
+ * decoration, which is a far worse thing to teach than "not built yet".
+ *
+ * So: say plainly that it is not built, and spend the space on problems that are.
+ * The suggestions are read from the real registry — a problem appears here only if
+ * its tracer actually exists — which also means the current problem excludes itself
+ * for free, since an implemented problem never renders this component.
+ */
 export function PlaceholderCanvas({ structure }: { structure: StructureSlug }) {
+  const built = PROBLEMS.filter((p) => isImplemented(p.slug));
+  const structureTitle = STRUCTURES.find((s) => s.slug === structure)?.title;
+
+  // Nearest first: same structure, so the suggestion is a genuine substitute
+  // rather than a random jump to another corner of the curriculum.
+  const suggestions = [
+    ...built.filter((p) => p.structure === structure),
+    ...built.filter((p) => p.structure !== structure),
+  ].slice(0, MAX_SUGGESTIONS);
+
   return (
-    <div className="flex h-full flex-col bg-base">
-      <div className="bg-grid relative flex-1">
-        <div className="absolute inset-0 grid place-items-center p-6 sm:p-10">
-          <div className="w-full max-w-lg">
-            <div className="aspect-[16/10] w-full overflow-hidden rounded-2xl border border-line bg-elevated/70 shadow-[var(--shadow-md)]">
-              <StructurePreview slug={structure} />
-            </div>
-            <p className="mt-4 text-center text-sm text-fg-muted">
-              A live, structure-specific canvas. Step through it to see every change.
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="bg-rule flex h-full flex-col overflow-auto bg-base">
+      <section
+        aria-labelledby="not-built-heading"
+        className="m-auto w-full max-w-md p-6 sm:p-10"
+      >
+        <div className="rounded-xl border border-line bg-surface p-5 shadow-[var(--lift)]">
+          <h2 id="not-built-heading" className="text-lg font-semibold text-fg">
+            This visualization isn&rsquo;t built yet
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-fg-muted">
+            The problem is in the curriculum, but the instrumented version of the algorithm —
+            the part that records every step so it can be drawn — hasn&rsquo;t been written.
+            There is nothing real to step through, so this pane stays empty rather than showing
+            controls that do nothing.
+          </p>
 
-      {/* legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line px-4 py-2">
-        <span className="text-[11px] font-medium text-fg-faint">Legend</span>
-        {LEGEND.map((k) => (
-          <span key={k} className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted">
-            <span className="size-2.5 rounded-[3px]" style={{ background: STATE_META[k].cssVar }} />
-            {STATE_META[k].label}
-          </span>
-        ))}
-      </div>
+          {suggestions.length > 0 && (
+            <>
+              <p className="mt-5 text-2xs font-medium text-fg-faint">
+                {structureTitle ? `Running now, starting with ${structureTitle}` : "Running now"}
+              </p>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {suggestions.map((p) => (
+                  <li key={p.slug}>
+                    <Link
+                      href={`/problem/${p.slug}`}
+                      className={cn(
+                        "group flex items-center gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5",
+                        "hover:border-line-strong hover:bg-surface-3",
+                        pressFeedback,
+                        focusRing,
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-medium text-fg">
+                          {p.title}
+                        </span>
+                        <span className="block truncate text-2xs text-fg-muted">{p.topic}</span>
+                      </span>
+                      <DifficultyTag level={p.difficulty} className="shrink-0" />
+                      <ArrowRight
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-fg-faint transition-colors duration-[var(--duration-fast)] ease-out group-hover:text-fg"
+                      />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
-      {/* control bar (wired up in Phase 2) */}
-      <div className="flex items-center gap-3 border-t border-line bg-surface px-4 py-3">
-        <div className="flex items-center gap-1 text-fg-muted">
-          <span className="grid size-8 place-items-center rounded-lg hover:bg-surface-2"><RotateCcw className="size-4" /></span>
-          <span className="grid size-8 place-items-center rounded-lg hover:bg-surface-2"><SkipBack className="size-4" /></span>
-          <span className="mx-0.5 grid size-9 place-items-center rounded-full bg-brand text-brand-fg shadow-[var(--shadow-glow)]">
-            <Play className="size-4 translate-x-px fill-current" />
-          </span>
-          <span className="grid size-8 place-items-center rounded-lg hover:bg-surface-2"><SkipForward className="size-4" /></span>
+          <Link
+            href="/problems"
+            className={cn(
+              "mt-4 inline-flex items-center gap-1.5 rounded-xs text-sm font-medium text-fg-muted hover:text-fg",
+              pressFeedback,
+              focusRing,
+            )}
+          >
+            All {built.length} problems
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+          </Link>
         </div>
-        <span className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">1×</span>
-        <div className="relative mx-1 h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
-          <div className="absolute inset-y-0 left-0 w-0 rounded-full bg-brand" />
-        </div>
-        <span className="shrink-0 font-mono text-[11px] text-fg-muted">Step 0 / 0</span>
-      </div>
+      </section>
     </div>
   );
 }

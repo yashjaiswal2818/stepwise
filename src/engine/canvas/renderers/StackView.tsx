@@ -2,26 +2,36 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { StackScene, ElementState } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
-import { SPRING } from "../motion";
+import { stateColor, stateFill } from "@/design-system/state-palette";
+import { DUR, EASE_OUT, SPRING } from "../motion";
 
 const strokeFor = (s: ElementState) => (s === "default" ? "var(--state-default-border)" : stateColor(s));
 const textFor = (s: ElementState) => (s === "default" ? "var(--state-default-fg)" : "var(--state-ink)");
 
-const VB_W = 420;
-const VB_H = 320;
+const MIN_VB_W = 420;
+const MIN_BASE_Y = 292;
 const IN_W = 30;
 const IN_GAP = 6;
 const IN_Y = 22;
 const FR_W = 92;
 const FR_H = 32;
 const FR_GAP = 6;
-const BASE_Y = 292;
 
 export function StackView({ scene }: { scene: StackScene }) {
   const input = scene.input;
   const inN = input?.cells.length ?? 0;
   const inTotalW = inN * IN_W + (inN - 1) * IN_GAP;
+
+  /* The canvas fits its content. A hardcoded box silently cropped long custom
+     inputs off both sides and pushed a deep stack — including the "top" marker
+     — above the top edge, which is exactly the information the picture exists
+     to carry. preserveAspectRatio scales the larger box down to fit instead. */
+  const VB_W = Math.max(MIN_VB_W, inTotalW + 48);
+  const inputBottom = IN_Y + IN_W + 16; // cells plus the pointer beneath them
+  const stackH = scene.frames.length * (FR_H + FR_GAP);
+  const BASE_Y = Math.max(MIN_BASE_Y, inputBottom + 24 + stackH);
+  const VB_H = BASE_Y + 28; // base line + its label
+
   const inStartX = (VB_W - inTotalW) / 2;
   const inX = (i: number) => inStartX + i * (IN_W + IN_GAP);
 
@@ -34,7 +44,7 @@ export function StackView({ scene }: { scene: StackScene }) {
       {input && (
         <>
           {input.label && (
-            <text x={inStartX} y={IN_Y - 8} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+            <text x={inStartX} y={IN_Y - 8} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-mono)">
               {input.label}
             </text>
           )}
@@ -46,8 +56,8 @@ export function StackView({ scene }: { scene: StackScene }) {
                 width={IN_W}
                 height={IN_W}
                 rx={7}
-                className="transition-[fill,stroke] duration-200"
-                style={{ fill: stateColor(c.state), stroke: strokeFor(c.state) }}
+                className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+                style={{ fill: stateFill(c.state), stroke: strokeFor(c.state) }}
                 strokeWidth={1.4}
               />
               <text
@@ -56,9 +66,9 @@ export function StackView({ scene }: { scene: StackScene }) {
                 textAnchor="middle"
                 fontSize={15}
                 fontWeight={600}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: textFor(c.state) }}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {c.value}
               </text>
@@ -70,14 +80,14 @@ export function StackView({ scene }: { scene: StackScene }) {
               animate={{ x: inX(input.pointer) + IN_W / 2 }}
               transition={SPRING}
               d={`M0 ${IN_Y + IN_W + 3} L-6 ${IN_Y + IN_W + 12} L6 ${IN_Y + IN_W + 12} Z`}
-              fill="var(--brand)"
+              fill="var(--state-active)"
             />
           )}
         </>
       )}
 
       <line x1={frameX - 10} y1={BASE_Y} x2={frameX + FR_W + 10} y2={BASE_Y} stroke="var(--border-strong)" strokeWidth={2.5} strokeLinecap="round" />
-      <text x={VB_W / 2} y={BASE_Y + 18} textAnchor="middle" fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+      <text x={VB_W / 2} y={BASE_Y + 18} textAnchor="middle" fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-mono)">
         stack
       </text>
 
@@ -88,15 +98,15 @@ export function StackView({ scene }: { scene: StackScene }) {
             initial={{ opacity: 0, y: frameY(f.index) - 34 }}
             animate={{ opacity: 1, y: frameY(f.index) }}
             exit={{ opacity: 0, y: frameY(f.index) - 34, scale: 0.9 }}
-            transition={{ y: SPRING, opacity: { duration: 0.2 }, scale: { duration: 0.2 } }}
+            transition={{ y: SPRING, opacity: { duration: DUR.base, ease: EASE_OUT }, scale: { duration: DUR.base, ease: EASE_OUT } }}
           >
             <rect
               x={frameX}
               width={FR_W}
               height={FR_H}
-              rx={8}
-              className="transition-[fill,stroke] duration-200"
-              style={{ fill: stateColor(f.state), stroke: strokeFor(f.state) }}
+              rx={7}
+              className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+              style={{ fill: stateFill(f.state), stroke: strokeFor(f.state) }}
               strokeWidth={1.5}
             />
             <text
@@ -105,15 +115,28 @@ export function StackView({ scene }: { scene: StackScene }) {
               textAnchor="middle"
               fontSize={16}
               fontWeight={600}
-              className="transition-[fill] duration-200"
+              className="transition-[fill] duration-[var(--duration-base)] ease-out"
               style={{ fill: textFor(f.state) }}
-              fontFamily="var(--font-geist-mono)"
+              fontFamily="var(--font-mono)"
             >
               {f.value}
             </text>
           </motion.g>
         ))}
       </AnimatePresence>
+
+      {scene.frames.length === 0 && (
+        <text
+          x={VB_W / 2}
+          y={BASE_Y - 16}
+          textAnchor="middle"
+          fontSize={12}
+          fill="var(--text-muted)"
+          fontFamily="var(--font-mono)"
+        >
+          stack is empty
+        </text>
+      )}
 
       {topIdx >= 0 && (
         <motion.text
@@ -123,7 +146,7 @@ export function StackView({ scene }: { scene: StackScene }) {
           x={frameX + FR_W + 12}
           fontSize={10}
           fill="var(--text-muted)"
-          fontFamily="var(--font-geist-mono)"
+          fontFamily="var(--font-mono)"
         >
           ← top
         </motion.text>

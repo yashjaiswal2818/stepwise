@@ -3,7 +3,6 @@
 import { useRef } from "react";
 import { RotateCcw, SkipBack, SkipForward, Play, Pause } from "lucide-react";
 import { usePlayer } from "./store";
-import { cn } from "@/lib/utils";
 
 const SPEEDS = [0.5, 1, 1.5, 2, 3];
 
@@ -54,7 +53,7 @@ export function PlayerControls() {
         </button>
         <button
           onClick={() => usePlayer.getState().toggle()}
-          className="mx-0.5 grid size-9 place-items-center rounded-full bg-brand text-brand-fg shadow-[var(--shadow-glow)] transition-transform hover:scale-105 active:scale-95"
+          className="mx-0.5 grid size-9 place-items-center rounded-full bg-accent text-accent-fg shadow-[var(--lift-hi)] transition-transform hover:scale-105 active:scale-95"
           title="Play / pause (Space)"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
@@ -73,7 +72,7 @@ export function PlayerControls() {
 
       <button
         onClick={cycleSpeed}
-        className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
+        className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
         title="Speed (+ / −)"
       >
         {speed}×
@@ -99,15 +98,15 @@ export function PlayerControls() {
         aria-valuenow={index}
       >
         <div className="relative h-1 w-full overflow-hidden rounded-full bg-surface-3">
-          <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: `${pct}%` }} />
+          <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: `${pct}%` }} />
         </div>
         <div
-          className="absolute size-3 -translate-x-1/2 rounded-full bg-brand-strong opacity-0 shadow-[var(--shadow-sm)] transition-opacity group-hover:opacity-100"
+          className="absolute size-3 -translate-x-1/2 rounded-full bg-accent opacity-0 shadow-[var(--lift)] transition-opacity group-hover:opacity-100"
           style={{ left: `${pct}%` }}
         />
       </div>
 
-      <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-muted">
+      <span className="shrink-0 font-mono text-2xs tabular-nums text-fg-muted">
         Step {total === 0 ? 0 : index + 1} / {total}
       </span>
     </div>

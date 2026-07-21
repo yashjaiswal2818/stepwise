@@ -1,67 +1,92 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "motion/react";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { HeroPreview } from "./HeroPreview";
 import { buttonVariants } from "@/design-system/ui/Button";
+import { getTrace } from "@/algorithms/getTrace";
+import { PROBLEMS, TIERS } from "@/curriculum/catalog";
 import { cn } from "@/lib/utils";
 
-const fade = (d = 0) => ({
-  initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay: d, ease: [0.22, 1, 0.36, 1] as const },
-});
+/**
+ * The example the hero runs. Bubble Sort, for three reasons:
+ *   1. Its scene is a single row of six cells — the widest, shortest and most
+ *      height-stable layout the engine produces, so it survives the hero frame
+ *      at any width and never reflows mid-run. (Two Sum's map grows as it
+ *      scans, which means the frame changes height inside the loop.)
+ *   2. Its 29 steps touch four of the seven state colors — compare, swap,
+ *      final, default — so "color means algorithm state" is demonstrated
+ *      rather than asserted, and without needing a legend.
+ *   3. Numbers physically sliding into order needs no domain knowledge to
+ *      parse. A stranger gets it in the five seconds the landing page has.
+ */
+const HERO_EXAMPLE = "bubble-sort";
 
+/**
+ * Deliberately a server component. `getTrace` reaches the whole algorithm
+ * registry (all sixteen tracers); building the trace here keeps that code out
+ * of the client bundle and ships the finished trace in the RSC payload
+ * instead. It also puts the headline in the initial HTML.
+ */
 export function Hero() {
+  const trace = getTrace(HERO_EXAMPLE);
+  const structures = new Set(PROBLEMS.map((p) => p.structure)).size;
+
   return (
-    <section className="relative overflow-hidden">
+    <section className="relative border-b border-line">
       <div
-        className="pointer-events-none absolute inset-x-0 top-[-10%] -z-10 h-[520px]"
-        style={{
-          background:
-            "radial-gradient(60% 60% at 50% 0%, color-mix(in oklab, var(--brand) 22%, transparent), transparent 70%)",
-        }}
+        aria-hidden="true"
+        className="bg-rule pointer-events-none absolute inset-0 -z-10 opacity-30 mask-[linear-gradient(to_bottom,black,transparent_70%)]"
       />
-      <div className="bg-grid pointer-events-none absolute inset-0 -z-10 opacity-40 [mask-image:radial-gradient(70%_50%_at_50%_0%,black,transparent)]" />
 
-      <div className="mx-auto max-w-5xl px-5 pt-16 pb-12 text-center sm:pt-24">
-       
-        <motion.h1
-          {...fade(0.06)}
-          className="mt-5 text-balance text-4xl font-semibold tracking-tight text-fg sm:text-6xl"
-        >
-          Master data structures,
-          <br className="hidden sm:block" /> one <span className="text-gradient">step</span> at a time.
-        </motion.h1>
-        <motion.p
-          {...fade(0.12)}
-          className="mx-auto mt-5 max-w-xl text-pretty text-base leading-relaxed text-fg-muted sm:text-lg"
-        >
-          Stepwise turns every algorithm into a beautiful, interactive visualization. Pause, step
-          forward, and actually see what&apos;s happening — build intuition instead of memorizing.
-        </motion.p>
-        <motion.div {...fade(0.18)} className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/learn" className={cn(buttonVariants({ size: "lg" }))}>
-            Start learning <ArrowRight className="size-4" />
-          </Link>
-          <Link href="/problems" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
-            Explore problems
-          </Link>
-        </motion.div>
-        <motion.p {...fade(0.24)} className="mt-6 font-mono text-xs text-fg-faint">
-          step controls · state highlighting · 15+ curated problems
-        </motion.p>
+      <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-14 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-12 lg:py-20">
+        <div>
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
+            See every step the algorithm takes.
+          </h1>
+          <p className="mt-5 max-w-prose text-pretty text-md leading-relaxed text-fg-muted">
+            Stepwise executes the real code and redraws the structure after every operation. Pause
+            anywhere, step backward, change the input — and watch the mechanism instead of
+            memorizing the result.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <Link href="/learn" className={cn(buttonVariants({ size: "lg" }))}>
+              Start the curriculum
+              <ArrowRight className="size-4" />
+            </Link>
+            <Link
+              href="/problems"
+              className="group inline-flex items-center gap-1.5 text-base font-medium text-fg-muted transition-colors duration-[var(--duration-fast)] hover:text-fg"
+            >
+              Browse all {PROBLEMS.length} problems
+              <ArrowUpRight className="size-4 transition-transform duration-[var(--duration-fast)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+
+          <p className="mt-7 font-mono text-xs text-fg-faint">
+            {TIERS.length} tiers · {structures} structures · nothing pre-recorded
+          </p>
+        </div>
+
+        {trace && trace.steps.length > 0 ? (
+          <HeroPreview trace={trace} />
+        ) : (
+          /* The demo is built at request time, so it can genuinely fail to
+             build. Say so plainly and hand over the real workspace rather than
+             leaving a hole in the fold. */
+          <div className="rounded-2xl border border-line bg-surface p-8 shadow-[var(--lift)]">
+            <p className="text-md text-fg-muted">
+              The live demo could not be built for this request.
+            </p>
+            <Link
+              href={`/problem/${HERO_EXAMPLE}`}
+              className="group mt-4 inline-flex items-center gap-1.5 text-base font-medium text-fg transition-colors duration-[var(--duration-fast)] hover:text-fg-muted"
+            >
+              Open it in the workspace
+              <ArrowUpRight className="size-4 transition-transform duration-[var(--duration-fast)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+        )}
       </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.8, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        className="mx-auto max-w-4xl px-5 pb-10"
-      >
-        <HeroPreview />
-      </motion.div>
     </section>
   );
 }

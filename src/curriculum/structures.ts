@@ -1,3 +1,5 @@
+import { PROBLEMS, type Problem } from "./catalog";
+
 export type StructureSlug =
   | "arrays"
   | "linked-lists"
@@ -57,7 +59,7 @@ export const STRUCTURES: Structure[] = [
     slug: "hash-tables",
     title: "Hash Tables",
     blurb: "Keys mapped straight to buckets for instant, almost magical lookup.",
-    accent: "var(--accent-cyan)",
+    accent: "var(--state-visited)",
     href: "/problem/two-sum",
     tryLabel: "Two Sum",
   },
@@ -81,25 +83,45 @@ export const STRUCTURES: Structure[] = [
     slug: "recursion",
     title: "Recursion",
     blurb: "Problems that solve themselves by calling themselves — frame by frame.",
-    accent: "var(--brand-strong)",
+    accent: "var(--state-swap)",
     href: "/problem/max-depth",
     tryLabel: "Maximum Depth",
   },
 ];
 
-export interface FeaturedExample {
-  slug: string;
-  title: string;
-  topic: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-}
+/**
+ * A featured problem is a catalog problem — not a copy of one.
+ *
+ * This list used to restate title/topic/difficulty inline, and it had already
+ * drifted: it billed Merge Sort as "Divide & Conquer" and Quick Sort as
+ * "Partitioning" while the catalog called both "Sorting", and it shortened
+ * "Dijkstra's Shortest Path" to "Dijkstra's Path". The landing page and
+ * /problems disagreed about the same problem.
+ *
+ * So curation lives here and facts live in catalog.ts. Renaming a problem or
+ * re-filing its topic now moves both surfaces at once, and there is no second
+ * place to forget.
+ */
+export type FeaturedExample = Problem;
 
-/** A teaser strip of canonical problems. */
-export const FEATURED: FeaturedExample[] = [
-  { slug: "merge-sort", title: "Merge Sort", topic: "Divide & Conquer", difficulty: "Medium" },
-  { slug: "binary-search", title: "Binary Search", topic: "Searching", difficulty: "Easy" },
-  { slug: "sliding-window", title: "Longest Substring", topic: "Sliding Window", difficulty: "Medium" },
-  { slug: "detect-cycle", title: "Detect a Cycle", topic: "Fast & Slow Pointers", difficulty: "Easy" },
-  { slug: "quick-sort", title: "Quick Sort", topic: "Partitioning", difficulty: "Medium" },
-  { slug: "dijkstra", title: "Dijkstra's Path", topic: "Pathfinding", difficulty: "Hard" },
+const FEATURED_SLUGS = [
+  "merge-sort",
+  "binary-search",
+  "sliding-window",
+  "detect-cycle",
+  "quick-sort",
+  "dijkstra",
 ];
+
+export const FEATURED: FeaturedExample[] = FEATURED_SLUGS.map((slug) => {
+  const problem = PROBLEMS.find((p) => p.slug === slug);
+  if (!problem) {
+    // Fail at import — which means at `next build`, since / is prerendered —
+    // rather than silently dropping a card and shipping a short strip.
+    throw new Error(
+      `curriculum/structures: FEATURED references "${slug}", which is not in PROBLEMS (curriculum/catalog.ts). ` +
+        `Fix the slug or remove it from FEATURED_SLUGS.`,
+    );
+  }
+  return problem;
+});

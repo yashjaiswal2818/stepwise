@@ -24,7 +24,9 @@ export const TIERS: Tier[] = [
   { n: 4, name: "Graphs, Sorting & Search", blurb: "Explore networks, order the unordered, and find the shortest path." },
 ];
 
-/** The 15 canonical starter examples — the seed curriculum for Stepwise. */
+/** The canonical starter examples — the seed curriculum for Stepwise.
+ *  Anything that needs the count reads `PROBLEMS.length`; don't restate it here,
+ *  it goes stale the moment a problem is added. */
 export const PROBLEMS: Problem[] = [
   { slug: "two-sum", title: "Two Sum", topic: "Hashing", difficulty: "Easy", tier: 1, structure: "hash-tables" },
   { slug: "two-pointers", title: "Two Pointers", topic: "Two Pointers", difficulty: "Easy", tier: 1, structure: "arrays" },
@@ -50,16 +52,17 @@ export function getProblem(slug: string): Problem | undefined {
   return BY_SLUG.get(slug);
 }
 
-/** Fallback metadata for a slug that isn't in the catalog yet (deep links from cards). */
-export function resolveProblem(slug: string): Problem {
-  return (
-    BY_SLUG.get(slug) ?? {
-      slug,
-      title: slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" "),
-      topic: "Coming soon",
-      difficulty: "Easy",
-      tier: 1,
-      structure: "arrays",
-    }
-  );
+/**
+ * Look up a problem by slug. Returns undefined for a slug that isn't in the
+ * catalog — callers should 404.
+ *
+ * This used to fabricate plausible metadata for ANY slug (title-cased from the
+ * URL, topic "Coming soon"), which meant /problem/total-nonsense rendered a
+ * real-looking page for a problem that does not exist. Every /problem/ link in
+ * the app derives from PROBLEMS, so the fallback only ever fired for typos and
+ * crawlers. A catalog slug that isn't implemented yet is a different case, and
+ * `isImplemented()` in the registry already handles it.
+ */
+export function resolveProblem(slug: string): Problem | undefined {
+  return BY_SLUG.get(slug);
 }

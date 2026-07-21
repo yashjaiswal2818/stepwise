@@ -2,18 +2,19 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { GraphScene, ElementState, Frame } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
+import { stateColor, stateFill } from "@/design-system/state-palette";
+import { DUR, EASE_OUT } from "../motion";
 
 const R = 22;
 const strokeFor = (s: ElementState) => (s === "default" ? "var(--state-default-border)" : stateColor(s));
 const textFor = (s: ElementState) => (s === "default" ? "var(--text)" : "var(--state-ink)");
-const nodeFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateColor(s));
+const nodeFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateFill(s));
 const edgeStroke = (s: ElementState) => (s === "default" ? "var(--border-strong)" : stateColor(s));
 
 function FrontierPanel({ frames, label }: { frames: Frame[]; label?: string }) {
   return (
     <div className="flex w-24 shrink-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/50 p-2">
-      <span className="pb-1 text-center text-[10px] font-medium text-fg-faint">{label ?? "queue"}</span>
+      <span className="pb-1 text-center text-2xs font-medium text-fg-faint">{label ?? "queue"}</span>
       <AnimatePresence mode="popLayout">
         {frames.map((f) => (
           <motion.div
@@ -22,7 +23,7 @@ function FrontierPanel({ frames, label }: { frames: Frame[]; label?: string }) {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DUR.base, ease: EASE_OUT }}
             className="rounded-lg border px-2 py-1 text-center font-mono text-xs"
             style={{
               borderColor: f.state === "default" ? "var(--border)" : stateColor(f.state),
@@ -62,7 +63,7 @@ export function GraphView({ scene }: { scene: GraphScene }) {
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              className="transition-[stroke] duration-200"
+              className="transition-[stroke] duration-[var(--duration-base)] ease-out"
               style={{ stroke: edgeStroke(e.state) }}
               strokeWidth={e.state === "default" ? 1.6 : 2.6}
             />
@@ -76,7 +77,7 @@ export function GraphView({ scene }: { scene: GraphScene }) {
                 cx={p.x}
                 cy={p.y}
                 r={R}
-                className="transition-[fill,stroke] duration-200"
+                className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
                 style={{ fill: nodeFill(n.state), stroke: strokeFor(n.state) }}
                 strokeWidth={1.8}
               />
@@ -86,9 +87,9 @@ export function GraphView({ scene }: { scene: GraphScene }) {
                 textAnchor="middle"
                 fontSize={15}
                 fontWeight={600}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: textFor(n.state) }}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {n.value}
               </text>

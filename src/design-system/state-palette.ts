@@ -33,3 +33,21 @@ export const STATE_KEYS = Object.keys(STATE_META) as ElementState[];
 export function stateColor(state: ElementState): string {
   return STATE_META[state].cssVar;
 }
+
+/**
+ * The algorithm-state FILL for a shape on the canvas. Use this, not
+ * `stateColor()`, anywhere a value is drawn *inside* the shape.
+ *
+ * Dark theme keeps the saturated color — `--state-fill-mix` is 100%, so the mix
+ * collapses to the color itself. Light theme resolves to a 16% tint of the
+ * surface, because a saturated fill there blows out and `--state-ink` stops
+ * being legible on top of it (five of the seven states fall below 4.5:1, the
+ * worst at 1.75:1). The stroke and the label carry the hue instead.
+ *
+ * `.state-fill` in globals.css does this for HTML via `background-color`, which
+ * an SVG shape ignores — `fill` is a different property. This is the canvas
+ * equivalent, so both layers stay in sync with one `--state-fill-mix`.
+ */
+export function stateFill(state: ElementState): string {
+  return `color-mix(in oklab, ${stateColor(state)} var(--state-fill-mix), var(--surface))`;
+}

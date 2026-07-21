@@ -1,4 +1,5 @@
-import { Eye, MousePointerClick, Sparkles } from "lucide-react";
+import { notFound } from "next/navigation";
+import { Eye, MousePointerClick, MessageSquareText } from "lucide-react";
 import { ProblemTopbar } from "@/components/shell/ProblemTopbar";
 import { SplitView } from "@/components/shell/SplitView";
 import { PlaceholderCanvas } from "@/components/shell/PlaceholderCanvas";
@@ -10,12 +11,13 @@ import { isImplemented } from "@/algorithms/registry";
 const WATCH = [
   { icon: MousePointerClick, text: "Move one step at a time — forward is the hero control." },
   { icon: Eye, text: "Colors encode state: comparing, swapping, visited, done." },
-  { icon: Sparkles, text: "A plain-English narration explains why each step happens." },
+  { icon: MessageSquareText, text: "A plain-English narration explains why each step happens." },
 ];
 
 export default async function ProblemPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const p = resolveProblem(slug);
+  if (!p) notFound();
 
   const left = (
     <div className="mx-auto max-w-xl px-6 py-8">
@@ -26,7 +28,7 @@ export default async function ProblemPage({ params }: { params: Promise<{ slug: 
       </div>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-fg">{p.title}</h1>
 
-      <p className="mt-4 text-[15px] leading-relaxed text-fg-muted">
+      <p className="mt-4 text-md leading-relaxed text-fg-muted">
         Watch <span className="text-fg">{p.title}</span> unfold one step at a time. The canvas on the
         right redraws after every operation, with color showing exactly what changed. Move at your own
         pace — the evidence says pacing control is what actually builds understanding.
@@ -35,7 +37,7 @@ export default async function ProblemPage({ params }: { params: Promise<{ slug: 
       <div className="mt-6 space-y-2.5">
         {WATCH.map(({ icon: Icon, text }) => (
           <div key={text} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3">
-            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-strong">
+            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-sm bg-surface-3 text-fg">
               <Icon className="size-4" />
             </span>
             <p className="text-sm leading-relaxed text-fg-muted">{text}</p>

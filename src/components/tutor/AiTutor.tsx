@@ -1,15 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { Sparkles, X, ArrowUp } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { X, ArrowUp, CornerDownRight, ArrowRight } from "lucide-react";
 import { usePlayer } from "@/engine/player/store";
 import { useWorkspace } from "@/engine/player/workspace";
 import { getExample } from "@/algorithms/registry";
 import { getCustomSpec } from "@/algorithms/custom";
 import { getLesson } from "@/curriculum/lessons";
 import type { Problem } from "@/curriculum/catalog";
+import { buttonVariants } from "@/design-system/ui/Button";
+import { IconButton } from "@/design-system/ui/IconButton";
 import { cn } from "@/lib/utils";
+
+/**
+ * Motion tokens, mirrored as numbers because motion/react cannot read a CSS
+ * custom property. These are `--duration-base` / `--duration-slow` / `--ease-out`
+ * from globals.css — not new curves. If those tokens change, change these.
+ */
+const D_BASE = 0.2;
+const D_SLOW = 0.46;
+const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 interface Msg {
   role: "user" | "assistant";
@@ -120,25 +131,178 @@ function runAction(a: Action, slug: string): string {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Minimal markdown
+
+   Ada writes `**bold**`, `inline code` and blank-line paragraph breaks, and
+   nothing else. A markdown dependency would ship a parser (and usually an
+   HTML sink) to cover three cases, so this handles exactly those three and
+   renders everything else as literal text.
+
+   Every piece lands in a React text node, so escaping is React's job and
+   there is no dangerouslySetInnerHTML anywhere in this file. Unclosed
+   delimiters — which is every reply mid-stream — simply render literally
+   until the closing token arrives.
+   -------------------------------------------------------------------------- */
+
+type Piece = { t: "text" | "code" | "bold"; v: string };
+
+function tokenizeInline(src: string): Piece[] {
+  // Constructed per call: a shared /g regex carries lastIndex between calls.
+  // Code is first in the alternation so `**a**` inside backticks stays literal.
+  // Bold may not open or close on whitespace, which keeps Python exponentiation
+  // written as prose ("n ** 2 ** m") from turning into a bold run.
+  const re = /`([^`\n]+)`|\*\*(\S[\s\S]*?\S|\S)\*\*/g;
+  const out: Piece[] = [];
+  let last = 0;
+  for (let m = re.exec(src); m !== null; m = re.exec(src)) {
+    if (m.index > last) out.push({ t: "text", v: src.slice(last, m.index) });
+    if (m[1] !== undefined) out.push({ t: "code", v: m[1] });
+    else out.push({ t: "bold", v: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < src.length) out.push({ t: "text", v: src.slice(last) });
+  return out;
+}
+
+function Prose({ text, className }: { text: string; className?: string }) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (paragraphs.length === 0) return null;
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      {paragraphs.map((para, i) => (
+        <p key={i} className="whitespace-pre-wrap">
+          {tokenizeInline(para).map((piece, j) =>
+            piece.t === "code" ? (
+              <code
+                key={j}
+                className="rounded-xs border border-line bg-surface-2 px-1 py-0.5 font-mono text-xs text-fg"
+              >
+                {piece.v}
+              </code>
+            ) : piece.t === "bold" ? (
+              <strong key={j} className="font-semibold text-fg">
+                {piece.v}
+              </strong>
+            ) : (
+              <span key={j}>{piece.v}</span>
+            ),
+          )}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * In-progress readout. Deliberately static, following app/loading.tsx: an
+ * animated indicator would have to be suppressed under reduced motion anyway,
+ * and a still readout reads as "measuring", which is the register we want. It
+ * is also not a progress bar — there is no real progress to report, and a fake
+ * one would be depicting the product rather than being it.
+ */
+function ThinkingLine() {
+  return (
+    <div role="status">
+      <p className="font-mono text-2xs text-fg-muted" aria-hidden>
+        thinking…
+      </p>
+      <span className="sr-only">Ada is thinking</span>
+    </div>
+  );
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * Live proof that Ada is wired to the canvas: the step she can currently see.
+ * Isolated into its own component so playback re-renders this line and not the
+ * whole transcript.
+ */
+function GroundingLine({ fallback }: { fallback: string }) {
+  const index = usePlayer((s) => s.index);
+  const total = usePlayer((s) => s.trace?.steps.length ?? 0);
+  if (!total) return <span className="text-2xs text-fg-muted">{fallback}</span>;
+  return (
+    <span className="text-2xs text-fg-muted">
+      reading step <span className="font-mono">{index + 1}</span> of{" "}
+      <span className="font-mono">{total}</span>
+    </span>
+  );
+}
+
+/**
+ * Starter questions grounded in the problem actually on screen — the complexity
+ * from its lesson, and a real dataset from its registry entry. Nothing here is
+ * invented copy about a generic algorithm.
+ */
+function useStarters(problem: Problem): string[] {
+  return useMemo(() => {
+    const lesson = getLesson(problem.slug);
+    const out = ["Explain what is happening at this step"];
+    if (lesson?.time) out.push(`Why is ${problem.title} ${lesson.time}?`);
+    const edge = getExample(problem.slug)?.datasets.find((d) =>
+      /worst|absent|invalid|reverse/i.test(`${d.id} ${d.label}`),
+    );
+    if (edge) out.push(`Run “${edge.label}” and walk me through what changes`);
+    else if (getCustomSpec(problem.slug).kind !== "none") out.push("Run an input that breaks my intuition");
+    else out.push("Where do people usually get this wrong?");
+    return out.slice(0, 3);
+  }, [problem.slug, problem.title]);
+}
+
 export function AiTutor({ problem }: { problem: Problem }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  const pinBottom = useRef(true);
 
-  const lesson = getLesson(problem.slug);
-  const suggestions = [
-    "Explain this step",
-    lesson ? `Why is it ${lesson.time}?` : "Explain the approach",
-    "Show me the worst case",
-    "Quiz me on this",
-  ];
+  const reduce = useReducedMotion();
+  const starters = useStarters(problem);
 
+  const close = useCallback(() => {
+    restoreFocus.current = true;
+    setOpen(false);
+  }, []);
+
+  // Focus moves into the panel on open and back to the launcher on close, so
+  // the panel is never a keyboard dead end.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, loading]);
+    if (open) {
+      pinBottom.current = true;
+      inputRef.current?.focus();
+    } else if (restoreFocus.current) {
+      restoreFocus.current = false;
+      launcherRef.current?.focus();
+    }
+  }, [open]);
+
+  // Follow the tail of the conversation, but never yank the view away from a
+  // learner who has scrolled up to re-read something.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const force = pinBottom.current;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (!force && !atBottom) return;
+    if (force && messages.length > 0) pinBottom.current = false;
+    el.scrollTo({ top: el.scrollHeight, behavior: force || prefersReducedMotion() ? "auto" : "smooth" });
+  }, [messages, loading, open]);
 
   // Rehydrate a saved conversation the first time the panel opens. Signed-out
   // users get an empty list — the tutor still works, it just doesn't remember.
@@ -198,8 +362,8 @@ export function AiTutor({ problem }: { problem: Problem }) {
         return;
       }
 
-      // Streaming: one placeholder bubble, filled as text deltas and tool actions
-      // arrive. `acc` holds the running state; flush() rewrites the last bubble.
+      // Streaming: one placeholder turn, filled as text deltas and tool actions
+      // arrive. `acc` holds the running state; flush() rewrites the last turn.
       setMessages((prev) => [...prev, { role: "assistant", text: "" }]);
       const acc = { text: "", labels: [] as string[] };
       const flush = () =>
@@ -275,23 +439,28 @@ export function AiTutor({ problem }: { problem: Problem }) {
     }
   }
 
+  // True once the SSE placeholder turn exists, so the standalone indicator can
+  // stand down and let that turn report its own progress.
+  const lastMsg = messages[messages.length - 1];
+  const streamingTurn = loading && lastMsg?.role === "assistant" && !lastMsg.kind;
+
   return (
     <>
       <AnimatePresence>
         {!open && (
           <motion.button
             key="fab"
+            ref={launcherRef}
             initial={false}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+            transition={reduce ? { duration: 0 } : { duration: D_BASE, ease: EASE_OUT }}
             onClick={() => setOpen(true)}
-            className="fixed bottom-20 right-6 z-50 flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white shadow-xl shadow-brand/25"
-            aria-label="Ask Ada, the AI tutor"
+            className={cn(
+              buttonVariants({ variant: "primary", size: "md" }),
+              "fixed bottom-20 right-6 z-50 shadow-[var(--lift-hi),var(--shadow-pop)]",
+            )}
           >
-            <Sparkles className="h-4 w-4" />
             Ask Ada
           </motion.button>
         )}
@@ -301,121 +470,120 @@ export function AiTutor({ problem }: { problem: Problem }) {
         {open && (
           <motion.div
             key="panel"
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="fixed bottom-6 right-6 z-50 flex h-[min(34rem,calc(100vh-5rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+            role="dialog"
+            aria-label="Ada, your tutor"
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
+            transition={reduce ? { duration: 0 } : { duration: D_SLOW, ease: EASE_OUT }}
+            onKeyDown={(e) => {
+              // The panel owns its keys while it is focused: the global playback
+              // hotkeys (space, arrows, r, Home/End) must not fire underneath a
+              // learner who is reading or tabbing through the transcript.
+              e.stopPropagation();
+              if (e.key === "Escape") {
+                e.preventDefault();
+                close();
+              }
+            }}
+            className="fixed bottom-6 right-6 z-50 flex h-[min(34rem,calc(100vh-5rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--lift),var(--shadow-modal)]"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-soft text-brand-strong">
-                  <Sparkles className="h-4 w-4" />
-                </span>
-                <div className="leading-tight">
-                  <p className="text-sm font-semibold text-fg">Ada</p>
-                  <p className="text-[11px] text-fg-faint">your AI tutor</p>
-                </div>
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div className="min-w-0 leading-tight">
+                <h2 className="text-base font-medium text-fg">Ada</h2>
+                <GroundingLine fallback={problem.title} />
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-lg p-1.5 text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+              <IconButton onClick={close} aria-label="Close tutor (Escape)" className="-mr-1.5 shrink-0">
+                <X className="size-4" aria-hidden />
+              </IconButton>
+            </header>
 
-            {/* Messages */}
-            <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-              {messages.length === 0 && (
-                <div className="space-y-3">
-                  <p className="text-[13px] leading-relaxed text-fg-muted">
-                    Hi! I&apos;m Ada. I can see what&apos;s on your canvas — ask me to explain a step, run your
-                    own input, or show a tricky case, and I&apos;ll drive the visualization for you.
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestions.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => send(s)}
-                        className="rounded-full border border-line bg-base px-2.5 py-1 text-[12px] text-fg-muted transition-colors hover:border-brand hover:text-fg"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            {/* Transcript. tabIndex makes it keyboard-scrollable; aria-live is off
+                because a token-by-token stream would flood a screen reader — the
+                status line below announces instead. */}
+            <div
+              ref={scrollRef}
+              tabIndex={0}
+              role="log"
+              aria-live="off"
+              aria-label="Conversation with Ada"
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 focus-visible:-outline-offset-2"
+            >
+              {messages.length === 0 && historyLoaded && (
+                <EmptyState starters={starters} onPick={send} disabled={loading} />
               )}
 
               {messages.map((m, i) =>
                 m.kind === "key" ? (
                   <KeyCard key={i} />
+                ) : m.role === "user" ? (
+                  <p key={i} className="whitespace-pre-wrap text-md font-medium text-fg">
+                    <span className="sr-only">You asked: </span>
+                    {m.text}
+                  </p>
                 ) : (
-                  <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-                    <div
-                      className={cn(
-                        "max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
-                        m.role === "user"
-                          ? "bg-brand text-white"
-                          : m.kind === "error"
-                            ? "bg-rose-500/10 text-rose-500"
-                            : "bg-surface-2 text-fg",
-                      )}
-                    >
-                      {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
-                      {m.actions && m.actions.length > 0 && (
-                        <div className={cn("flex flex-col gap-1", m.text && "mt-2")}>
-                          {m.actions.map((a, j) => (
-                            <span key={j} className="text-[11px] font-medium text-brand-strong">
-                              ▸ {a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <div
+                    key={i}
+                    className={cn("border-l pl-3", m.kind === "error" ? "border-line-strong" : "border-line")}
+                  >
+                    <p className="mb-1 font-mono text-2xs text-fg-muted">
+                      {m.kind === "error" ? "ada — not delivered" : "ada"}
+                    </p>
+                    {m.text && <Prose text={m.text} className="text-md text-fg" />}
+                    {/* The streaming placeholder carries its own status, so the
+                        turn and the indicator never both claim to be Ada. */}
+                    {!m.text && loading && i === messages.length - 1 && <ThinkingLine />}
+                    {m.actions && m.actions.length > 0 && (
+                      <ul className={cn("space-y-1", m.text && "mt-2")}>
+                        {m.actions.map((a, j) => (
+                          <li
+                            key={j}
+                            className="flex w-fit items-center gap-1.5 rounded-sm border border-line bg-surface-2 px-2 py-1 font-mono text-2xs text-fg-muted"
+                          >
+                            <CornerDownRight className="size-3 shrink-0" aria-hidden />
+                            {a}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ),
               )}
 
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="flex gap-1 rounded-2xl bg-surface-2 px-3 py-3">
-                    {[0, 1, 2].map((i) => (
-                      <motion.span
-                        key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-fg-faint"
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                      />
-                    ))}
-                  </div>
+              {/* Only while no assistant turn has been opened yet — once the
+                  stream creates its placeholder, that turn shows the status. */}
+              {loading && !streamingTurn && (
+                <div className="border-l border-line pl-3">
+                  <p className="mb-1 font-mono text-2xs text-fg-muted" aria-hidden>
+                    ada
+                  </p>
+                  <ThinkingLine />
                 </div>
               )}
             </div>
 
-            {/* Composer */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 send(input);
               }}
-              className="flex items-center gap-2 border-t border-line px-3 py-3"
+              className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-3"
             >
               <input
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Ada anything…"
-                className="min-w-0 flex-1 rounded-xl border border-line bg-base px-3 py-2 text-[13px] text-fg outline-none focus:border-brand"
+                placeholder="Ask Ada about this step"
+                aria-label="Ask Ada about this step"
+                className="h-10 min-w-0 flex-1 rounded-md border border-line bg-base px-3 text-base text-fg transition-colors duration-[var(--duration-fast)] ease-out placeholder:text-fg-faint hover:border-line-strong focus:border-line-strong"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white transition-opacity disabled:opacity-40"
+                className={cn(buttonVariants({ variant: "primary", size: "md" }), "w-10 shrink-0 px-0")}
                 aria-label="Send"
               >
-                <ArrowUp className="h-4 w-4" />
+                <ArrowUp className="size-4" aria-hidden />
               </button>
             </form>
           </motion.div>
@@ -425,12 +593,59 @@ export function AiTutor({ problem }: { problem: Problem }) {
   );
 }
 
+/**
+ * The first-run state. It teaches what Ada is wired to — that she can drive the
+ * visualization, and that she will not just hand over the answer — and offers
+ * openers grounded in the problem currently on screen.
+ */
+function EmptyState({
+  starters,
+  onPick,
+  disabled,
+}: {
+  starters: string[];
+  onPick: (q: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 text-md text-fg-muted">
+        <p>
+          I can see what you can see — the step you are on, your variables, and the input that is loaded.
+          Ask about any of it and I can drive the visualization to answer: jump to a step, switch the
+          dataset, or run your own input.
+        </p>
+        <p>I will not hand you the solution. I will find where your model of it breaks, and push there.</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="font-mono text-2xs text-fg-muted">start with</p>
+        {starters.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onPick(s)}
+            disabled={disabled}
+            className="group flex w-full items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-2 text-left text-base text-fg-muted transition-colors duration-[var(--duration-fast)] ease-out hover:border-line-strong hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {s}
+            <ArrowRight
+              className="size-3.5 shrink-0 text-fg-faint transition-colors duration-[var(--duration-fast)] ease-out group-hover:text-fg"
+              aria-hidden
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function KeyCard() {
   return (
-    <div className="rounded-xl border border-line bg-base p-3 text-[13px] leading-relaxed text-fg-muted">
-      <p className="mb-2 font-semibold text-fg">Almost there — add an API key</p>
+    <div className="rounded-lg border border-line bg-base p-3 text-base text-fg-muted shadow-[var(--lift)]">
+      <p className="mb-2 font-medium text-fg">Almost there — add an API key</p>
       <p>To turn Ada on, add your OpenRouter key to a file at the project root:</p>
-      <pre className="my-2 overflow-x-auto rounded-lg bg-surface-2 px-3 py-2 text-[12px] text-fg">
+      <pre className="my-2 overflow-x-auto rounded-sm border border-line bg-surface-2 px-3 py-2 text-xs text-fg">
         <code>
           # .env.local{"\n"}
           OPENROUTER_API_KEY=sk-or-…

@@ -56,6 +56,39 @@ const POS: Record<string, [number, number]> = {
   dijkstra: [910, 590],
 };
 
+/**
+ * Anything without a hand-authored position is dropped from the map below. That
+ * is the intended behaviour — the layout is curated, so a node cannot place
+ * itself — but the failure mode is silent: add a problem to catalog.ts, forget
+ * POS, and it is simply INVISIBLE on /learn with no error anywhere.
+ *
+ * So say so, loudly, in development. This is the cheapest possible fix and it
+ * catches the omission on the first page load after the problem is added.
+ */
+if (process.env.NODE_ENV !== "production") {
+  const unplaced = [
+    ...STRUCTURES.filter((s) => !POS[s.slug]).map((s) => s.slug),
+    ...PROBLEMS.filter((p) => !POS[p.slug]).map((p) => p.slug),
+  ];
+  if (unplaced.length > 0) {
+    console.warn(
+      `[constellation] ${unplaced.length} curriculum ${unplaced.length === 1 ? "entry has" : "entries have"} ` +
+        `no hand-authored x/y position and will NOT be rendered on /learn: ${unplaced.join(", ")}. ` +
+        `Add coordinates to POS in src/curriculum/constellation.ts.`,
+    );
+  }
+
+  // The mirror-image drift: coordinates left behind by a deleted problem.
+  const known = new Set<string>([...STRUCTURES.map((s) => s.slug), ...PROBLEMS.map((p) => p.slug)]);
+  const orphaned = Object.keys(POS).filter((slug) => !known.has(slug));
+  if (orphaned.length > 0) {
+    console.warn(
+      `[constellation] POS holds coordinates for ${orphaned.join(", ")}, which no longer exist in the ` +
+        `curriculum. Remove them from src/curriculum/constellation.ts.`,
+    );
+  }
+}
+
 const structBySlug = Object.fromEntries(STRUCTURES.map((s) => [s.slug, s]));
 
 const structureNodes: CNode[] = STRUCTURES.filter((s) => POS[s.slug]).map((s) => ({
@@ -75,7 +108,7 @@ const problemNodes: CNode[] = PROBLEMS.filter((p) => POS[p.slug]).map((p) => ({
   label: p.title,
   x: POS[p.slug][0],
   y: POS[p.slug][1],
-  accent: structBySlug[p.structure]?.accent ?? "var(--brand)",
+  accent: structBySlug[p.structure]?.accent ?? "var(--border-strong)",
   href: `/problem/${p.slug}`,
   structure: p.structure,
   difficulty: p.difficulty,

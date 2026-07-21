@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { ListScene, ElementState } from "@/engine/types";
-import { STATE_KEYS, stateColor } from "@/design-system/state-palette";
-import { SPRING } from "../motion";
+import { STATE_KEYS, stateColor, stateFill } from "@/design-system/state-palette";
+import { DUR, EASE_OUT, SPRING } from "../motion";
 
 /**
  * A singly-linked list drawn the way it's taught: each node is one box split
@@ -37,10 +37,10 @@ const addressOf = (i: number) => 3200 + i * 400;
 
 const strokeFor = (s: ElementState) =>
   s === "default" ? "var(--state-default-border)" : stateColor(s);
-const boxFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateColor(s));
+const boxFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateFill(s));
 const valueInk = (s: ElementState) => (s === "default" ? "var(--text)" : "var(--state-ink)");
 const pointerInk = (s: ElementState) => (s === "default" ? "var(--text-muted)" : "var(--state-ink)");
-const edgeStroke = (s: ElementState) => (s === "default" ? "var(--border-strong)" : stateColor(s));
+const edgeStroke = (s: ElementState) => (s === "default" ? "var(--text-faint)" : stateColor(s));
 
 export function ListView({ scene }: { scene: ListScene }) {
   const index = new Map(scene.nodes.map((n, i) => [n.id, i]));
@@ -81,7 +81,7 @@ export function ListView({ scene }: { scene: ListScene }) {
         ))}
         {scene.nodes.map((nd, i) => (
           <clipPath key={nd.id} id={`ll-box-${nd.id}`}>
-            <rect x={left(i)} y={BOX_Y} width={BOX_W} height={BOX_H} rx={9} />
+            <rect x={left(i)} y={BOX_Y} width={BOX_W} height={BOX_H} rx={7} />
           </clipPath>
         ))}
       </defs>
@@ -102,7 +102,7 @@ export function ListView({ scene }: { scene: ListScene }) {
           <path
             d={`M ${PADX - 34} ${CY - 6} V ${CY} H ${PADX - 9}`}
             fill="none"
-            stroke="var(--border-strong)"
+            stroke="var(--text-faint)"
             strokeWidth={1.8}
             markerEnd="url(#ll-tip-default)"
           />
@@ -138,7 +138,7 @@ export function ListView({ scene }: { scene: ListScene }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: DUR.base, ease: EASE_OUT }}
             />
           );
         })}
@@ -159,11 +159,17 @@ export function ListView({ scene }: { scene: ListScene }) {
                 y={BOX_Y}
                 width={BOX_W}
                 height={BOX_H}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: boxFill(nd.state) }}
               />
               {/* the pointer half sits a shade back from the data half */}
-              <rect x={x + DATA_W} y={BOX_Y} width={PTR_W} height={BOX_H} fill="var(--text)" opacity={0.07} />
+              <rect
+                x={x + DATA_W}
+                y={BOX_Y}
+                width={PTR_W}
+                height={BOX_H}
+                fill="color-mix(in oklab, var(--text) 7%, transparent)"
+              />
             </g>
 
             <line
@@ -180,9 +186,9 @@ export function ListView({ scene }: { scene: ListScene }) {
               y={BOX_Y}
               width={BOX_W}
               height={BOX_H}
-              rx={9}
+              rx={7}
               fill="none"
-              className="transition-[stroke] duration-200"
+              className="transition-[stroke] duration-[var(--duration-base)] ease-out"
               style={{ stroke: strokeFor(nd.state) }}
               strokeWidth={1.8}
             />
@@ -192,10 +198,10 @@ export function ListView({ scene }: { scene: ListScene }) {
               y={CY + 5}
               textAnchor="middle"
               fontSize={16}
-              fontWeight={650}
-              className="transition-[fill] duration-200"
+              fontWeight={700}
+              className="transition-[fill] duration-[var(--duration-base)] ease-out"
               style={{ fill: valueInk(nd.state) }}
-              fontFamily="var(--font-geist-mono)"
+              fontFamily="var(--font-mono)"
             >
               {nd.value}
             </text>
@@ -205,10 +211,10 @@ export function ListView({ scene }: { scene: ListScene }) {
               y={CY + 4}
               textAnchor="middle"
               fontSize={pointerLabel === "NULL" ? 10.5 : 11.5}
-              fontWeight={pointerLabel === "NULL" ? 700 : 550}
-              className="transition-[fill] duration-200"
+              fontWeight={pointerLabel === "NULL" ? 700 : 500}
+              className="transition-[fill] duration-[var(--duration-base)] ease-out"
               style={{ fill: pointerInk(nd.state) }}
-              fontFamily="var(--font-geist-mono)"
+              fontFamily="var(--font-mono)"
             >
               {pointerLabel}
             </text>
@@ -219,8 +225,8 @@ export function ListView({ scene }: { scene: ListScene }) {
               y={ADDR_Y}
               textAnchor="middle"
               fontSize={10}
-              fill="var(--text-faint)"
-              fontFamily="var(--font-geist-mono)"
+              fill="var(--text-muted)"
+              fontFamily="var(--font-mono)"
             >
               {addressOf(i)}
             </text>
@@ -241,7 +247,7 @@ export function ListView({ scene }: { scene: ListScene }) {
           if (ti == null) return null;
           const label = ptrs.map((p) => p.label).join(" ");
           const w = Math.max(28, label.length * 7.4 + 14);
-          const color = ptrs[0].color ?? "var(--brand)";
+          const color = ptrs[0].color ?? "var(--state-active)";
           return (
             <motion.g
               key={targetId}
@@ -256,8 +262,8 @@ export function ListView({ scene }: { scene: ListScene }) {
                 textAnchor="middle"
                 fontSize={11}
                 fontWeight={700}
-                fill="var(--brand-fg)"
-                fontFamily="var(--font-geist-mono)"
+                fill="var(--state-ink)"
+                fontFamily="var(--font-mono)"
               >
                 {label}
               </text>

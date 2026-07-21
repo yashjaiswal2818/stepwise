@@ -3,19 +3,19 @@
 import { useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { TreeScene, Frame, ElementState } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
+import { stateColor, stateFill } from "@/design-system/state-palette";
 import { treeLayout } from "../layout/treeLayout";
-import { SPRING } from "../motion";
+import { DUR, EASE_OUT, SPRING } from "../motion";
 
 const R = 20;
 const strokeFor = (s: ElementState) => (s === "default" ? "var(--state-default-border)" : stateColor(s));
 const textFor = (s: ElementState) => (s === "default" ? "var(--text)" : "var(--state-ink)");
-const nodeFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateColor(s));
+const nodeFill = (s: ElementState) => (s === "default" ? "var(--surface-2)" : stateFill(s));
 
 function CallStack({ frames }: { frames: Frame[] }) {
   return (
     <div className="flex w-24 shrink-0 flex-col justify-end gap-1.5 rounded-xl border border-line bg-surface/50 p-2">
-      <span className="pb-1 text-center text-[10px] font-medium text-fg-faint">call stack</span>
+      <span className="pb-1 text-center text-2xs font-medium text-fg-faint">call stack</span>
       <AnimatePresence mode="popLayout">
         {[...frames].reverse().map((f) => (
           <motion.div
@@ -24,7 +24,7 @@ function CallStack({ frames }: { frames: Frame[] }) {
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DUR.base, ease: EASE_OUT }}
             className="rounded-lg border px-2 py-1.5 text-center font-mono text-xs"
             style={{
               borderColor: f.state === "active" ? "var(--state-active)" : "var(--border)",
@@ -65,7 +65,7 @@ export function TreeView({ scene }: { scene: TreeScene }) {
                 animate={{ cx: p.x, cy: p.y }}
                 transition={SPRING}
                 r={R}
-                className="transition-[fill,stroke] duration-200"
+                className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
                 style={{ fill: nodeFill(n.state), stroke: strokeFor(n.state) }}
                 strokeWidth={1.8}
               />
@@ -76,16 +76,16 @@ export function TreeView({ scene }: { scene: TreeScene }) {
                 textAnchor="middle"
                 fontSize={15}
                 fontWeight={600}
-                className="transition-[fill] duration-200"
+                className="transition-[fill] duration-[var(--duration-base)] ease-out"
                 style={{ fill: textFor(n.state) }}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {n.value}
               </motion.text>
               {n.label && (
                 <motion.g initial={false} animate={{ x: p.x + R - 3, y: p.y - R + 3 }} transition={SPRING}>
-                  <circle r={9} fill="var(--brand)" stroke="var(--bg)" strokeWidth={1.5} />
-                  <text textAnchor="middle" y={3.5} fontSize={10} fontWeight={700} fill="var(--brand-fg)" fontFamily="var(--font-geist-mono)">
+                  <circle r={9} fill="var(--state-visited)" stroke="var(--bg)" strokeWidth={1.5} />
+                  <text textAnchor="middle" y={3.5} fontSize={10} fontWeight={700} fill="var(--state-ink)" fontFamily="var(--font-mono)">
                     {n.label}
                   </text>
                 </motion.g>

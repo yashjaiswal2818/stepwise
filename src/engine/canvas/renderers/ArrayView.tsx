@@ -2,9 +2,9 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { ArrayScene, Cell, ElementState } from "@/engine/types";
-import { stateColor } from "@/design-system/state-palette";
+import { stateColor, stateFill } from "@/design-system/state-palette";
 import { arrayLayout } from "../layout/arrayLayout";
-import { SPRING, POP_SPRING } from "../motion";
+import { DUR, EASE_OUT, POP_SPRING, SPRING } from "../motion";
 
 /** Transient examination states lift the cell slightly for a physical "beat" per step. */
 const LIFT_STATES = new Set<ElementState>(["active", "compare", "swap"]);
@@ -54,7 +54,7 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
                 fontSize={9.5}
                 fontWeight={600}
                 fill={stateColor(r.state)}
-                fontFamily="var(--font-geist-mono)"
+                fontFamily="var(--font-mono)"
               >
                 {r.label}
               </motion.text>
@@ -76,25 +76,25 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
               scale: LIFT_STATES.has(c.state) ? 1.08 : 1,
             }}
             exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ x: SPRING, y: SPRING, opacity: { duration: 0.25 }, scale: POP_SPRING }}
+            transition={{ x: SPRING, y: SPRING, opacity: { duration: DUR.base, ease: EASE_OUT }, scale: POP_SPRING }}
           >
             <rect
               width={cellW}
               height={cellH}
               rx={10}
-              className="transition-[fill,stroke] duration-200 ease-out"
-              style={{ fill: stateColor(c.state), stroke: strokeFor(c.state) }}
+              className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+              style={{ fill: stateFill(c.state), stroke: strokeFor(c.state) }}
               strokeWidth={1.5}
             />
             <text
               x={cellW / 2}
               y={cellH / 2 + 6}
               textAnchor="middle"
-              className="transition-[fill] duration-200"
+              className="transition-[fill] duration-[var(--duration-base)] ease-out"
               style={{ fill: textFor(c.state) }}
               fontSize={19}
               fontWeight={600}
-              fontFamily="var(--font-geist-mono)"
+              fontFamily="var(--font-mono)"
             >
               {c.value}
             </text>
@@ -116,11 +116,11 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
           const cx = target.x + cellW / 2;
           const label = ptrs.map((p) => p.label).join(" ");
           const w = Math.max(24, label.length * 7.2 + 12);
-          const color = ptrs[0].color ?? "var(--brand)";
+          const color = ptrs[0].color ?? "var(--state-active)";
           return (
             <motion.g key={targetId} initial={false} animate={{ x: cx }} transition={SPRING}>
               <rect x={-w / 2} y={cellY - 32} width={w} height={18} rx={5} fill={color} />
-              <text x={0} y={cellY - 19} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--brand-fg)" fontFamily="var(--font-geist-mono)">
+              <text x={0} y={cellY - 19} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--state-ink)" fontFamily="var(--font-mono)">
                 {label}
               </text>
               <path d={`M0 ${cellY - 4} l-5 -8 h10 z`} fill={color} />
@@ -131,7 +131,7 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
 
       {/* index ticks */}
       {slotCenterX.map((x, i) => (
-        <text key={i} x={x} y={viewH - 7} textAnchor="middle" fontSize={11} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+        <text key={i} x={x} y={viewH - 7} textAnchor="middle" fontSize={11} fill="var(--text-faint)" fontFamily="var(--font-mono)">
           {i}
         </text>
       ))}
@@ -139,7 +139,7 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
       {/* aux row (merge buffer) */}
       {scene.aux && (
         <>
-          <text x={6} y={auxLabelY} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-geist-mono)">
+          <text x={6} y={auxLabelY} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-mono)">
             {scene.aux.label ?? "buffer"}
           </text>
           <AnimatePresence>
@@ -149,14 +149,14 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
                 initial={{ opacity: 0, y: auxY + 12 }}
                 animate={{ opacity: 1, x: slotCenterX[c.index] - cellW / 2, y: auxY }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ x: SPRING, y: SPRING, opacity: { duration: 0.2 }, scale: { duration: 0.2 } }}
+                transition={{ x: SPRING, y: SPRING, opacity: { duration: DUR.base, ease: EASE_OUT }, scale: { duration: DUR.base, ease: EASE_OUT } }}
               >
                 <rect
                   width={cellW}
                   height={cellH}
                   rx={10}
-                  className="transition-[fill,stroke] duration-200"
-                  style={{ fill: stateColor(c.state), stroke: strokeFor(c.state) }}
+                  className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+                  style={{ fill: stateFill(c.state), stroke: strokeFor(c.state) }}
                   strokeWidth={1.5}
                 />
                 <text
@@ -166,7 +166,7 @@ export function ArrayView({ scene }: { scene: ArrayScene }) {
                   fontSize={19}
                   fontWeight={600}
                   style={{ fill: textFor(c.state) }}
-                  fontFamily="var(--font-geist-mono)"
+                  fontFamily="var(--font-mono)"
                 >
                   {c.value}
                 </text>
