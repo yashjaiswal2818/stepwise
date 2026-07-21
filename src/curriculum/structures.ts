@@ -14,20 +14,24 @@ export interface Structure {
   slug: StructureSlug;
   title: string;
   blurb: string;
-  /** CSS color used for the card's accent glow + preview tint. */
-  accent: string;
   /** Deep link into a representative example. */
   href: string;
   tryLabel: string;
 }
 
-/** The eight "worlds" shown on the landing page, each with a bespoke preview. */
+/**
+ * The eight "worlds" shown on the landing page, each with a bespoke preview.
+ *
+ * No per-structure `accent`: colour in this product means algorithm state, so a
+ * structure cannot own a hue. Identity is carried by the icon, the label, and the
+ * bespoke preview — and the old mapping wasn't even injective (linked-lists and
+ * recursion were both --state-swap), so two "different" worlds read as one colour.
+ */
 export const STRUCTURES: Structure[] = [
   {
     slug: "arrays",
     title: "Arrays",
     blurb: "Data lined up in order — indexed, contiguous, and instantly addressable.",
-    accent: "var(--state-compare)",
     href: "/problem/bubble-sort",
     tryLabel: "Bubble Sort",
   },
@@ -35,7 +39,6 @@ export const STRUCTURES: Structure[] = [
     slug: "linked-lists",
     title: "Linked Lists",
     blurb: "Elements joined in a chain, each node quietly pointing to the next.",
-    accent: "var(--state-swap)",
     href: "/problem/reverse-linked-list",
     tryLabel: "Reverse a List",
   },
@@ -43,7 +46,6 @@ export const STRUCTURES: Structure[] = [
     slug: "stacks",
     title: "Stacks",
     blurb: "Last in, first out — a tower of blocks that grows and unwinds.",
-    accent: "var(--state-active)",
     href: "/problem/valid-parentheses",
     tryLabel: "Valid Parentheses",
   },
@@ -51,7 +53,6 @@ export const STRUCTURES: Structure[] = [
     slug: "queues",
     title: "Queues",
     blurb: "First come, first served — data flowing through in an orderly line.",
-    accent: "var(--state-frontier)",
     href: "/problem/queue",
     tryLabel: "Queue Operations",
   },
@@ -59,7 +60,6 @@ export const STRUCTURES: Structure[] = [
     slug: "hash-tables",
     title: "Hash Tables",
     blurb: "Keys mapped straight to buckets for instant, almost magical lookup.",
-    accent: "var(--state-visited)",
     href: "/problem/two-sum",
     tryLabel: "Two Sum",
   },
@@ -67,7 +67,6 @@ export const STRUCTURES: Structure[] = [
     slug: "trees",
     title: "Trees",
     blurb: "Branching hierarchies where every node opens into more.",
-    accent: "var(--state-final)",
     href: "/problem/binary-tree-traversal",
     tryLabel: "Tree Traversals",
   },
@@ -75,7 +74,6 @@ export const STRUCTURES: Structure[] = [
     slug: "graphs",
     title: "Graphs",
     blurb: "A web of nodes and edges modeling any network of relationships.",
-    accent: "var(--state-path)",
     href: "/problem/number-of-islands",
     tryLabel: "Number of Islands",
   },
@@ -83,7 +81,6 @@ export const STRUCTURES: Structure[] = [
     slug: "recursion",
     title: "Recursion",
     blurb: "Problems that solve themselves by calling themselves — frame by frame.",
-    accent: "var(--state-swap)",
     href: "/problem/max-depth",
     tryLabel: "Maximum Depth",
   },

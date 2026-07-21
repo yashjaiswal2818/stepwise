@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "./landing/Logo";
 import { ThemeToggle } from "@/design-system/ui/ThemeToggle";
@@ -10,6 +11,7 @@ import { IconButton } from "@/design-system/ui/IconButton";
 import { NavStreak } from "./engagement/NavStreak";
 import { AuthButton } from "./auth/AuthButton";
 import { buttonVariants } from "@/design-system/ui/Button";
+import { DUR, EASE_OUT } from "@/engine/canvas/motion";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -26,50 +28,11 @@ const NAV_ITEMS: NavItem[] = [
 /**
  * `usePathname` cannot see the fragment, so a hash link can never be proven
  * active — and marking "Structures" as current on every `/` visit would be state
- * that has gone stale, which is worse than no state at all. Hash links simply
- * never claim to be current.
+ * that has gone stale, which is worse than no state at all.
  */
 function isCurrent(pathname: string, href: string): boolean {
   if (href.includes("#")) return false;
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-/**
- * Active is elevation + border weight + type weight, never a tint: three channels
- * that all survive greyscale and colour-vision deficiency. `aria-current` carries
- * the same fact to assistive tech.
- */
-function NavLink({
-  href,
-  current,
-  onNavigate,
-  className,
-  children,
-}: {
-  href: string;
-  current: boolean;
-  onNavigate?: () => void;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={current ? "page" : undefined}
-      onClick={onNavigate}
-      className={cn(
-        // rounded-md is the 36px step on the radius scale; rounded-lg is the
-        // card/panel step and reads as a blob at control size (see IconButton).
-        "rounded-md border px-3 py-2 text-sm transition-colors duration-[var(--duration-fast)] ease-out",
-        current
-          ? "border-line-strong bg-surface-3 font-semibold text-fg"
-          : "border-transparent font-medium text-fg-muted hover:bg-surface-2 hover:text-fg",
-        className,
-      )}
-    >
-      {children}
-    </Link>
-  );
 }
 
 const FOCUSABLE =
@@ -78,30 +41,38 @@ const FOCUSABLE =
 export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
 
-  // Close on route change, adjusted during render rather than in an effect: the
-  // sheet is then already gone on the first paint of the new route instead of
-  // flashing for a frame. The click handler on each link covers the one case
-  // this cannot see — a hash link that leaves `pathname` untouched.
+  // Close on route change, adjusted during render so the sheet is gone on the
+  // first paint of the new route instead of flashing for a frame.
   const [routeWhenOpened, setRouteWhenOpened] = useState(pathname);
   if (routeWhenOpened !== pathname) {
     setRouteWhenOpened(pathname);
     setOpen(false);
   }
 
-  // Modal behaviour: trap Tab inside the sheet, close on Escape, lock the page
-  // behind it, and hand focus back to the trigger on the way out.
+  // Scroll-aware: past a few pixels the bar condenses into a floating, elevated
+  // pill. The header keeps a CONSTANT height (h-16) and the bar animates INSIDE
+  // it, so nothing below the header ever reflows — no scroll jank.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Modal behaviour for the mobile sheet: trap Tab, close on Escape, lock the
+  // page behind it, hand focus back to the trigger on the way out.
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
     if (!panel) return;
-    // Captured now, not read in cleanup: the trigger is a stable node, and
-    // reading a ref during cleanup is a lint-flagged race.
     const trigger = triggerRef.current;
 
     const focusablesIn = () =>
@@ -147,39 +118,81 @@ export function Navbar() {
     };
   }, [open, close]);
 
+  const showCta = !pathname.startsWith("/learn") && !pathname.startsWith("/problem");
+  // The sliding indicator sits under the hovered item, or the current route when
+  // nothing is hovered — one element with a shared layoutId, so it glides.
+  const activeHref = hovered ?? NAV_ITEMS.find((i) => isCurrent(pathname, i.href))?.href ?? null;
+  // When the sheet is open the bar returns to its full, stable shape so the
+  // dropdown anchors cleanly to a full-width bar rather than a floating pill.
+  const condensed = scrolled && !open;
+
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-base/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link href="/" className="rounded-lg" aria-label="Stepwise home">
+    <header className="sticky top-0 z-40 h-16 px-3">
+      <div
+        className={cn(
+          "relative mx-auto flex items-center justify-between gap-3 transition-all duration-[var(--duration-base)] ease-out",
+          condensed
+            ? "mt-2 h-12 max-w-4xl rounded-full border border-line bg-elevated/85 pl-4 pr-2.5 shadow-[var(--shadow-pop)] backdrop-blur-md"
+            : "h-16 max-w-6xl border-b border-line/70 bg-base/90 px-4 backdrop-blur-sm",
+        )}
+      >
+        <Link href="/" className="shrink-0 rounded-lg" aria-label="Stepwise home">
           <Logo />
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} href={item.href} current={isCurrent(pathname, item.href)}>
-              {item.label}
-            </NavLink>
-          ))}
+        <nav
+          className="relative hidden items-center md:flex"
+          aria-label="Main"
+          onMouseLeave={() => setHovered(null)}
+        >
+          {NAV_ITEMS.map((item) => {
+            const current = isCurrent(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={current ? "page" : undefined}
+                onMouseEnter={() => setHovered(item.href)}
+                className={cn(
+                  "relative rounded-md px-3.5 py-2 text-sm transition-colors duration-[var(--duration-fast)] ease-out",
+                  current ? "font-semibold text-fg" : "font-medium text-fg-muted hover:text-fg",
+                )}
+              >
+                {activeHref === item.href && (
+                  <motion.span
+                    layoutId="nav-indicator"
+                    className="absolute inset-0 rounded-md bg-surface-2"
+                    transition={{ type: "tween", duration: DUR.base, ease: EASE_OUT }}
+                  />
+                )}
+                <span className="relative">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* Ambient chrome: your status and app settings. */}
           <NavStreak className="hidden sm:flex" />
           <ThemeToggle />
 
-          {/* A hairline splits ambient chrome from identity + primary action, so
-              the cluster reads as two groups instead of one undifferentiated run
-              of chips. A hairline is the system's sanctioned separator. */}
+          {/* A hairline splits ambient chrome from identity + primary action. */}
           <span className="hidden h-5 w-px bg-line sm:block" aria-hidden />
 
-          <AuthButton />
-          {/* "Start learning" points at /learn, so it is noise on /learn itself and
-              inside a problem/lesson — where it would be the highest-emphasis
-              control in the app pointing at the page you are already on. */}
-          {!pathname.startsWith("/learn") && !pathname.startsWith("/problem") && (
+          <AuthButton condensed={condensed} />
+          {/* "Start learning" points at /learn, so it is hidden there and inside a
+              problem/lesson, where it would point at the page you are already on.
+              Its radius follows the bar — rounding to a full pill as the navbar
+              condenses, on the same duration so the two move together. */}
+          {showCta && (
             <Link
               href="/learn"
-              className={cn(buttonVariants({ size: "sm" }), "hidden h-9 rounded-md sm:inline-flex")}
+              className={cn(
+                buttonVariants({ size: "sm" }),
+                "hidden h-9 sm:inline-flex",
+                "transition-[color,background-color,box-shadow,transform,border-radius] duration-[var(--duration-base)] ease-out",
+                condensed ? "rounded-full" : "rounded-md",
+              )}
             >
               Start learning
             </Link>
@@ -197,61 +210,60 @@ export function Navbar() {
             {open ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
           </IconButton>
         </div>
-      </div>
 
-      {open && (
-        <>
-          {/* Scrim. Click-to-dismiss lives on the real backdrop, but Escape and
-              the trigger are the keyboard routes out, so it stays aria-hidden.
+        {open && (
+          <>
+            {/* Scrim below the bar. Escape and the trigger are the keyboard routes
+                out, so it stays aria-hidden. Anchored to the bar (top-full). */}
+            <div
+              className="absolute inset-x-0 top-full z-30 mt-1 h-[calc(100dvh-4.5rem)] bg-base/80 backdrop-blur-sm md:hidden"
+              onClick={close}
+              aria-hidden
+            />
+            <div
+              ref={panelRef}
+              id={panelId}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Site navigation"
+              className="absolute inset-x-0 top-full z-40 mt-1 max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-xl border border-line-strong bg-elevated p-3 shadow-[var(--shadow-modal)] md:hidden"
+            >
+              <nav aria-label="Main" className="flex flex-col gap-1">
+                {NAV_ITEMS.map((item) => {
+                  const current = isCurrent(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={current ? "page" : undefined}
+                      onClick={close}
+                      className={cn(
+                        "rounded-md px-3 py-2.5 text-md transition-colors duration-[var(--duration-fast)] ease-out",
+                        current
+                          ? "bg-surface-3 font-semibold text-fg"
+                          : "font-medium text-fg-muted hover:bg-surface-2 hover:text-fg",
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
 
-              `absolute`, not `fixed`: the header's own backdrop-blur makes it a
-              containing block for fixed descendants, so `fixed inset-x-0 top-16
-              bottom-0` resolved against the 64px header and rendered 0px tall —
-              an invisible scrim. Anchored to the header instead, `top-full` sits
-              it directly below the bar and the height covers the rest of the
-              viewport. */}
-          <div
-            className="absolute inset-x-0 top-full z-30 h-[calc(100dvh-4rem)] bg-base/80 backdrop-blur-sm md:hidden"
-            onClick={close}
-            aria-hidden
-          />
-          <div
-            ref={panelRef}
-            id={panelId}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Site navigation"
-            className="absolute inset-x-0 top-full z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-b-xl border-b border-line-strong bg-elevated px-5 pb-5 pt-3 shadow-[var(--shadow-modal)] md:hidden"
-          >
-            <nav aria-label="Main" className="flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href}
-                  current={isCurrent(pathname, item.href)}
-                  onNavigate={close}
-                  className="text-md"
+              <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
+                <NavStreak className="flex self-start" />
+                <Link
+                  href="/learn"
+                  onClick={close}
+                  className={cn(buttonVariants({ size: "md" }), "w-full")}
                 >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
-              {/* Desktop-only in the bar itself, which left a phone with no way
-                  to reach it. This is that way. */}
-              <NavStreak className="flex self-start" />
-              <Link
-                href="/learn"
-                onClick={close}
-                className={cn(buttonVariants({ size: "md" }), "w-full")}
-              >
-                Start learning
-              </Link>
+                  Start learning
+                </Link>
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </header>
   );
 }

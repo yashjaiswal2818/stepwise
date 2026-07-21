@@ -7,18 +7,24 @@ import { authClient } from "@/lib/auth-client";
 import { useProgress } from "@/engagement/useProgress";
 import { useMounted } from "@/lib/useMounted";
 import { Button } from "@/design-system/ui/Button";
+import { cn } from "@/lib/utils";
+
+/** Rounds in sync with the navbar: a full pill when the bar has condensed. */
+const radiusTransition =
+  "transition-[color,background-color,box-shadow,transform,border-radius] duration-[var(--duration-base)] ease-out";
 
 /**
  * Sign in with GitHub / sign out. Reflects live session state via Better Auth's
  * reactive `useSession` hook. Signing in redirects to GitHub and back through
  * /api/auth/callback/github, landing on /learn.
  */
-export function AuthButton() {
+export function AuthButton({ condensed = false }: { condensed?: boolean } = {}) {
   const { data: session, isPending } = authClient.useSession();
   const mounted = useMounted();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const pill = condensed ? "rounded-full" : "rounded-md";
 
   /**
    * Signing out has to wipe local progress, and the order here is load-bearing.
@@ -85,7 +91,7 @@ export function AuthButton() {
   if (!mounted || isPending) {
     return (
       <div
-        className="h-9 w-24 animate-pulse rounded-md bg-surface-2"
+        className={cn("h-9 w-24 animate-pulse bg-surface-2", radiusTransition, pill)}
         role="status"
         aria-label="Checking sign-in status"
       />
@@ -120,7 +126,7 @@ export function AuthButton() {
         <Button
           variant="ghost"
           size="sm"
-          className="size-9 rounded-md p-0"
+          className={cn("size-9 p-0", radiusTransition, pill)}
           loading={busy}
           onClick={handleSignOut}
           aria-label="Sign out"
@@ -136,7 +142,7 @@ export function AuthButton() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <Button variant="outline" size="sm" className="h-9 rounded-md" loading={busy} onClick={handleSignIn}>
+      <Button variant="outline" size="sm" className={cn("h-9", radiusTransition, pill)} loading={busy} onClick={handleSignIn}>
         <LogIn className="size-4" aria-hidden />
         {/* Below sm the icon carries it visually, but the button still needs a
             name — so the word is hidden visually, not removed. */}

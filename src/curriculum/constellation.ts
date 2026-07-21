@@ -89,15 +89,15 @@ if (process.env.NODE_ENV !== "production") {
   }
 }
 
-const structBySlug = Object.fromEntries(STRUCTURES.map((s) => [s.slug, s]));
-
 const structureNodes: CNode[] = STRUCTURES.filter((s) => POS[s.slug]).map((s) => ({
   id: s.slug,
   kind: "structure",
   label: s.title,
   x: POS[s.slug][0],
   y: POS[s.slug][1],
-  accent: s.accent,
+  // Neutral: a node's identity is its icon, never a hue. Active/solved reads
+  // through ink + elevation in NodeDot, not colour.
+  accent: "var(--fg-muted)",
   href: s.href,
   structure: s.slug,
 }));
@@ -108,7 +108,7 @@ const problemNodes: CNode[] = PROBLEMS.filter((p) => POS[p.slug]).map((p) => ({
   label: p.title,
   x: POS[p.slug][0],
   y: POS[p.slug][1],
-  accent: structBySlug[p.structure]?.accent ?? "var(--border-strong)",
+  accent: "var(--fg-muted)",
   href: `/problem/${p.slug}`,
   structure: p.structure,
   difficulty: p.difficulty,

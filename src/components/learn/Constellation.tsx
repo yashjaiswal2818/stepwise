@@ -531,8 +531,10 @@ function NodeDot({
           style={{
             width: size,
             height: size,
-            borderColor: lit ? "var(--node)" : "var(--border-strong)",
-            boxShadow: lit ? "0 0 0 1px color-mix(in oklab, var(--node) 55%, transparent)" : "var(--lift)",
+            // Active / solved / hovered reads through INK + elevation, never a
+            // hue — a node's identity is its icon, not a colour.
+            borderColor: lit ? "var(--fg)" : "var(--border-strong)",
+            boxShadow: lit ? "var(--lift-hi)" : "var(--lift)",
           }}
         >
           {/* Per-hub progress, ported from LearnPath's per-tier rings. The full
