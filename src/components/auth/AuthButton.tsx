@@ -9,7 +9,9 @@ import { useMounted } from "@/lib/useMounted";
 import { Button } from "@/design-system/ui/Button";
 import { cn } from "@/lib/utils";
 
-/** Rounds in sync with the navbar: a full pill when the bar has condensed. */
+/** Rounds in sync with the navbar: a full pill when the bar has condensed. 
+ 
+ **/
 const radiusTransition =
   "transition-[color,background-color,box-shadow,transform,border-radius] duration-[var(--duration-base)] ease-out";
 
