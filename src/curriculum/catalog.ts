@@ -32,6 +32,7 @@ export const PROBLEMS: Problem[] = [
   { slug: "two-pointers", title: "Two Pointers", topic: "Two Pointers", difficulty: "Easy", tier: 1, structure: "arrays" },
   { slug: "sliding-window", title: "Longest Substring", topic: "Sliding Window", difficulty: "Medium", tier: 1, structure: "arrays" },
   { slug: "valid-parentheses", title: "Valid Parentheses", topic: "Stack", difficulty: "Easy", tier: 1, structure: "stacks" },
+  { slug: "infix-to-postfix", title: "Infix → Postfix", topic: "Stack", difficulty: "Medium", tier: 1, structure: "stacks" },
   { slug: "queue", title: "Queue (FIFO)", topic: "Queue", difficulty: "Easy", tier: 1, structure: "queues" },
   { slug: "reverse-linked-list", title: "Reverse Linked List", topic: "Linked List", difficulty: "Easy", tier: 2, structure: "linked-lists" },
   { slug: "detect-cycle", title: "Detect a Cycle", topic: "Fast & Slow Pointers", difficulty: "Easy", tier: 2, structure: "linked-lists" },

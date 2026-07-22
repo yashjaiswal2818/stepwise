@@ -50,6 +50,11 @@ export const LESSONS: Record<string, Lesson> = {
     space: "O(n)",
     idea: "A stack matches each closing bracket to the most recent opener. LIFO order is exactly what nesting requires.",
   },
+  "infix-to-postfix": {
+    time: "O(n)",
+    space: "O(n)",
+    idea: "A stack holds operators until precedence or a ')' forces them out — converting infix to postfix in one left-to-right pass. The same LIFO insight as bracket matching, now carrying operators instead of just openers.",
+  },
   "reverse-linked-list": {
     time: "O(n)",
     space: "O(1)",

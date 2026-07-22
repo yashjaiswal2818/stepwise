@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Ada runs on OpenRouter. Any tool-capable model slug works; override via env.
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "tencent/hy3:free";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "poolside/laguna-s-2.1:free";
 
 interface ToolDef {
   name: string;

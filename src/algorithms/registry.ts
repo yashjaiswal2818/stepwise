@@ -7,6 +7,7 @@ import { binarySearchTrace } from "./searching/binary-search";
 import { twoPointersTrace } from "./two-pointers/pair-sum";
 import { longestSubstringTrace } from "./sliding-window/longest-substring";
 import { validParenthesesTrace } from "./stack/valid-parentheses";
+import { infixToPostfixTrace } from "./stack/infix-to-postfix";
 import { reverseListTrace } from "./linked-list/reverse";
 import { detectCycleTrace } from "./linked-list/detect-cycle";
 import { twoSumTrace } from "./hashing/two-sum";
@@ -97,6 +98,14 @@ export const REGISTRY: Record<string, ExampleDef> = {
       { id: "nested", label: "([{}])", values: "([{}])".split("") },
       { id: "flat", label: "()[]{}", values: "()[]{}".split("") },
       { id: "invalid", label: "([)]", values: "([)]".split("") },
+    ],
+  },
+  "infix-to-postfix": {
+    id: "infix-to-postfix",
+    build: (ds) => infixToPostfixTrace(strs(ds), ds.id),
+    datasets: [
+      { id: "default", label: "A + B * C - ( D / E )", values: ["A", "+", "B", "*", "C", "-", "(", "D", "/", "E", ")"] },
+      { id: "parens", label: "( A + B ) * C", values: ["(", "A", "+", "B", ")", "*", "C"] },
     ],
   },
   "reverse-linked-list": {

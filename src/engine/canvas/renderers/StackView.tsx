@@ -26,14 +26,21 @@ export function StackView({ scene }: { scene: StackScene }) {
      inputs off both sides and pushed a deep stack — including the "top" marker
      — above the top edge, which is exactly the information the picture exists
      to carry. preserveAspectRatio scales the larger box down to fit instead. */
-  const VB_W = Math.max(MIN_VB_W, inTotalW + 48);
+  const output = scene.output;
+  const outN = output?.cells.length ?? 0;
+  const outTotalW = outN * IN_W + Math.max(0, outN - 1) * IN_GAP;
+
+  const VB_W = Math.max(MIN_VB_W, inTotalW + 48, output ? outTotalW + 48 : 0);
   const inputBottom = IN_Y + IN_W + 16; // cells plus the pointer beneath them
   const stackH = scene.frames.length * (FR_H + FR_GAP);
   const BASE_Y = Math.max(MIN_BASE_Y, inputBottom + 24 + stackH);
-  const VB_H = BASE_Y + 28; // base line + its label
+  const OUT_Y = BASE_Y + 42; // postfix row, below the stack base line + its label
+  const VB_H = output ? OUT_Y + IN_W + 20 : BASE_Y + 28; // output row, or just the base line + label
 
   const inStartX = (VB_W - inTotalW) / 2;
   const inX = (i: number) => inStartX + i * (IN_W + IN_GAP);
+  const outStartX = (VB_W - outTotalW) / 2;
+  const outX = (i: number) => outStartX + i * (IN_W + IN_GAP);
 
   const frameX = (VB_W - FR_W) / 2;
   const frameY = (i: number) => BASE_Y - FR_H - i * (FR_H + FR_GAP);
@@ -150,6 +157,49 @@ export function StackView({ scene }: { scene: StackScene }) {
         >
           ← top
         </motion.text>
+      )}
+
+      {output && (
+        <>
+          {output.label && (
+            <text x={outStartX} y={OUT_Y - 8} fontSize={10} fill="var(--text-faint)" fontFamily="var(--font-mono)">
+              {output.label}
+            </text>
+          )}
+          <AnimatePresence>
+            {output.cells.map((c) => (
+              <motion.g
+                key={c.id}
+                initial={{ opacity: 0, y: OUT_Y - 22 }}
+                animate={{ opacity: 1, y: OUT_Y }}
+                exit={{ opacity: 0 }}
+                transition={{ y: SPRING, opacity: { duration: DUR.base, ease: EASE_OUT } }}
+              >
+                <rect
+                  x={outX(c.index)}
+                  width={IN_W}
+                  height={IN_W}
+                  rx={7}
+                  className="transition-[fill,stroke] duration-[var(--duration-base)] ease-out"
+                  style={{ fill: stateFill(c.state), stroke: strokeFor(c.state) }}
+                  strokeWidth={1.4}
+                />
+                <text
+                  x={outX(c.index) + IN_W / 2}
+                  y={IN_W / 2 + 5}
+                  textAnchor="middle"
+                  fontSize={15}
+                  fontWeight={600}
+                  className="transition-[fill] duration-[var(--duration-base)] ease-out"
+                  style={{ fill: textFor(c.state) }}
+                  fontFamily="var(--font-mono)"
+                >
+                  {c.value}
+                </text>
+              </motion.g>
+            ))}
+          </AnimatePresence>
+        </>
       )}
     </svg>
   );

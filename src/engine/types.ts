@@ -87,6 +87,10 @@ export interface StackScene {
   frames: Cell[]; // drawn bottom -> top
   /** Optional scanned input sequence shown above the stack (e.g. the string). */
   input?: { cells: Cell[]; pointer?: number; label?: string };
+  /** Optional accumulating output sequence shown below the stack, appended
+   *  left -> right (e.g. the postfix result of shunting-yard). Backward
+   *  compatible: renderers only draw it when present. */
+  output?: { cells: Cell[]; label?: string };
 }
 export interface QueueScene {
   kind: "queue";

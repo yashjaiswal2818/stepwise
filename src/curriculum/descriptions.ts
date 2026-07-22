@@ -22,6 +22,8 @@ export const DESCRIPTIONS: Record<string, string> = {
     "Grow a window to the right one character at a time. When a character repeats, shrink the window from the left, tracking the longest window seen.",
   "valid-parentheses":
     "Scan the string, pushing every opening bracket. Each closing bracket must match the bracket on top of the stack — otherwise the string is invalid.",
+  "infix-to-postfix":
+    "Scan the expression left to right. Operands go straight to the output; operators wait on a stack until a higher- or equal-precedence operator, or a closing parenthesis, forces them off. The result is postfix — readable with no parentheses and no precedence rules.",
   "reverse-linked-list":
     "Walk the list with three pointers. Save the next node, flip the current node's pointer to face backward, then advance — reversing the list in a single pass.",
   "detect-cycle":
