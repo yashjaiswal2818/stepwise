@@ -68,12 +68,12 @@ export class ListTracer extends BaseTracer {
     return this;
   }
 
-  step(narration: string, line: Line, op?: StepOp): this {
-    this.snap(narration, line, op);
+  step(narration: string, line: Line, op?: StepOp, why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const edges: GEdge[] = [];
     for (const [src, tgt] of this.next) {
@@ -95,7 +95,7 @@ export class ListTracer extends BaseTracer {
         .filter((p) => p.id)
         .map((p) => ({ id: `p_${p.label}`, label: p.label, target: p.id as string, color: p.color })),
     };
-    this.commit(scene, narration, codeLines, op, { ...this.vars });
+    this.commit(scene, narration, codeLines, op, { ...this.vars }, why);
     for (const n of this.nodes) if (n.state !== "final") n.state = "default";
     this.edgeState.clear();
   }

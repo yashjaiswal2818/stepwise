@@ -48,22 +48,27 @@ front++;             // -> 1`,
 
 export function queueTrace(_values: number[], datasetId = "default"): Trace {
   const t = new QueueTracer();
-  t.note("A queue is FIFO — items join at the rear and always leave from the front.", L.init, "init");
+  t.note(
+    "A queue is FIFO — items join at the rear and always leave from the front.",
+    L.init,
+    "init",
+    "The structure exists to keep one promise: whoever arrived first is served first. Everything a queue does follows from refusing to reorder.",
+  );
 
-  t.enqueue(3, L.e3);
-  t.enqueue(7, L.e7);
-  t.enqueue(1, L.e1);
+  t.enqueue(3, L.e3, undefined, "3 joins at the rear — the only legal entrance. A queue that let arrivals cut in would stop being a queue.");
+  t.enqueue(7, L.e7, undefined, "7 stands behind 3 — position is arrival order. The values themselves carry no priority at all.");
+  t.enqueue(1, L.e1, undefined, "1 waits behind both — even the smallest value gets no priority. FIFO order is time order, nothing else.");
 
-  t.peekFront(L.d1);
-  t.dequeue(L.d1);
+  t.peekFront(L.d1, undefined, "The front is the only exit — 3 has waited longest, so 3 must be next.");
+  t.dequeue(L.d1, undefined, "Serving anyone but the front would mean a later arrival got served first — the one thing FIFO forbids.");
 
-  t.enqueue(9, L.e9);
+  t.enqueue(9, L.e9, undefined, "9 joins behind 1 — the dequeue at the front never reshuffled who is next at the rear.");
 
-  t.peekFront(L.d2);
-  t.dequeue(L.d2);
+  t.peekFront(L.d2, undefined, "With 3 gone, 7 has now waited longest — the front moved back one; nobody overtook anybody.");
+  t.dequeue(L.d2, undefined, "7 leaves exactly second because it arrived exactly second — a queue's output order IS its input order.");
 
-  t.peekFront(L.d3);
-  t.dequeue(L.d3);
+  t.peekFront(L.d3, undefined, "1 outwaited 9 — 9 arrived later, so 9 keeps waiting. Arrival time is the only rank there is.");
+  t.dequeue(L.d3, undefined, "First in, first out, every time: 3, 7, 1 left in exactly the order they arrived.");
 
   return t.build({
     exampleId: "queue",

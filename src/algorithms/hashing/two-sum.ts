@@ -41,18 +41,41 @@ const L = { setup: 2, loop: 3, need: 4, check: 5, store: 6 } as const;
 
 export function twoSumTrace(nums: number[], target: number, datasetId = "default"): Trace {
   const t = new HashTracer(nums, "nums", "seen  ·  value → index");
-  t.note(`Two Sum — for each value, check whether its complement (${target} − value) was already seen.`, L.setup, "init");
+  t.note(
+    `Two Sum — for each value, check whether its complement (${target} − value) was already seen.`,
+    L.setup,
+    "init",
+    "Checking every pair costs O(n²). Remembering what has walked past turns each step into one question — 'has my partner already been here?'",
+  );
 
   for (let i = 0; i < nums.length; i++) {
-    t.scan(i, L.loop);
+    t.scan(
+      i,
+      L.loop,
+      undefined,
+      `A pair needs two halves — seeing ${nums[i]} fixes exactly what the other half must be: ${target} − ${nums[i]} = ${target - nums[i]}. One look, one question.`,
+    );
     const need = target - nums[i];
     t.lookup(need, L.need);
     if (t.has(need)) {
       const j = t.get(need)!;
-      t.found(j, i, need, L.check);
+      t.found(
+        j,
+        i,
+        need,
+        L.check,
+        undefined,
+        `${need} was stored at index ${j} exactly for this moment — the pair was completed by memory, not by rescanning the array.`,
+      );
       break;
     }
-    t.insert(nums[i], i, L.store);
+    t.insert(
+      nums[i],
+      i,
+      L.store,
+      undefined,
+      `If ${need} never shows up later, this entry costs nothing — but if it does, the map must already know ${nums[i]} was here. Without it, that future step would rescan everything behind it.`,
+    );
   }
 
   return t.build({

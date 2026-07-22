@@ -52,12 +52,12 @@ export class GridTracer extends BaseTracer {
     return this;
   }
 
-  step(narration: string, line: Line, op?: StepOp): this {
-    this.snap(narration, line, op);
+  step(narration: string, line: Line, op?: StepOp, why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const cells: GridCell[] = [];
     for (const row of this.grid) for (const c of row) cells.push({ ...c });
@@ -69,6 +69,6 @@ export class GridTracer extends BaseTracer {
       frontier: this.frontier.length ? this.frontier.map((f) => ({ ...f })) : undefined,
       label: this.label,
     };
-    this.commit(scene, narration, codeLines, op, { ...this.vars });
+    this.commit(scene, narration, codeLines, op, { ...this.vars }, why);
   }
 }

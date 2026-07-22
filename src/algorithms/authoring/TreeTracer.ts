@@ -45,36 +45,36 @@ export class TreeTracer extends BaseTracer {
     return this;
   }
 
-  enter(id: string, label: string, line: Line, narration?: string): this {
+  enter(id: string, label: string, line: Line, narration?: string, why?: string): this {
     this.setNodeState(id, "active");
     this.stack.push({ id, label });
-    this.snap(narration ?? `Recurse into ${this.valueOf(id)}`, line, "recurse");
+    this.snap(narration ?? `Recurse into ${this.valueOf(id)}`, line, "recurse", why);
     return this;
   }
-  visit(id: string, line: Line, narration?: string): this {
+  visit(id: string, line: Line, narration?: string, why?: string): this {
     this.setNodeState(id, "visited");
     this.output.push(this.valueOf(id));
     const n = this.nodes.find((x) => x.id === id);
     if (n) n.label = String(this.output.length); // 1-based visit order
-    this.snap(narration ?? `Visit ${this.valueOf(id)} → output`, line, "visit");
+    this.snap(narration ?? `Visit ${this.valueOf(id)} → output`, line, "visit", why);
     return this;
   }
-  exit(id: string, line: Line, narration?: string): this {
+  exit(id: string, line: Line, narration?: string, why?: string): this {
     this.stack.pop();
-    this.snap(narration ?? `Return from ${this.valueOf(id)}`, line, "return");
+    this.snap(narration ?? `Return from ${this.valueOf(id)}`, line, "return", why);
     return this;
   }
-  markDepth(id: string, depth: number, line: Line, narration: string): this {
+  markDepth(id: string, depth: number, line: Line, narration: string, why?: string): this {
     const n = this.nodes.find((x) => x.id === id);
     if (n) {
       n.state = "visited";
       n.label = String(depth);
     }
-    this.snap(narration, line, "mark");
+    this.snap(narration, line, "mark", why);
     return this;
   }
-  note(narration: string, line: Line, op: StepOp = "init"): this {
-    this.snap(narration, line, op);
+  note(narration: string, line: Line, op: StepOp = "init", why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
@@ -93,7 +93,7 @@ export class TreeTracer extends BaseTracer {
     return es;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const callStack: Frame[] = this.stack.map((f, i) => ({
       id: `f${i}`,
@@ -108,9 +108,16 @@ export class TreeTracer extends BaseTracer {
       edges: this.edges(),
       callStack,
     };
-    this.commit(scene, narration, codeLines, op, {
-      output: this.output.join(" ") || "—",
-      ...this.extraVars,
-    });
+    this.commit(
+      scene,
+      narration,
+      codeLines,
+      op,
+      {
+        output: this.output.join(" ") || "—",
+        ...this.extraVars,
+      },
+      why,
+    );
   }
 }

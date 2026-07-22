@@ -57,12 +57,12 @@ export class GraphTracer extends BaseTracer {
     this.vars[k] = v;
     return this;
   }
-  step(narration: string, line: Line, op?: StepOp): this {
-    this.snap(narration, line, op);
+  step(narration: string, line: Line, op?: StepOp, why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const scene: GraphScene = {
       kind: "graph",
@@ -72,6 +72,6 @@ export class GraphTracer extends BaseTracer {
       frontier: this.frontier.length ? this.frontier.map((f) => ({ ...f })) : undefined,
       label: this.label,
     };
-    this.commit(scene, narration, codeLines, op, { ...this.vars });
+    this.commit(scene, narration, codeLines, op, { ...this.vars }, why);
   }
 }

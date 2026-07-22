@@ -14,6 +14,12 @@ type Line = number | number[];
  * control flow. One meaningful action = one commit = one player step; a single
  * operator that forces two others off the stack is three steps, on purpose,
  * because that is exactly what makes the "why" legible.
+ *
+ * Register discipline: `narration` is the WHAT ("Pop '×' to output."); the WHY
+ * — the constraint that forced the move — travels in the separate `why`
+ * register on the Step. Methods with an input-independent reason carry a
+ * default why; `popToOutput`'s reason is always situational, so the caller must
+ * supply it (computed from live state, or it lies under custom input).
  */
 export class ShuntingYardTracer extends BaseTracer {
   private input: Cell[];
@@ -36,17 +42,22 @@ export class ShuntingYardTracer extends BaseTracer {
     return t ? String(t.value) : undefined;
   }
 
-  note(narration: string, line: Line): this {
-    this.snap(narration, line, "init");
+  note(narration: string, line: Line, why?: string): this {
+    this.snap(narration, line, "init", why);
     return this;
   }
 
-  /** Operand → straight to output; operands never wait. */
-  emitOperand(i: number, line: Line): this {
+  /** Operand → straight to output. */
+  emitOperand(i: number, line: Line, why?: string): this {
     this.pointer = i;
     this.input[i].state = "active";
     this.output.push({ id: `o${this.oc++}`, value: this.input[i].value, index: this.output.length, state: "active" });
-    this.snap(`'${this.input[i].value}' is an operand — send it straight to output. Operands never wait.`, line, "insert");
+    this.snap(
+      `'${this.input[i].value}' is an operand — it goes straight to output.`,
+      line,
+      "insert",
+      why ?? "Operands never wait — only operators have an ordering conflict to resolve; a value has no one to fight with.",
+    );
     return this;
   }
 
@@ -55,59 +66,86 @@ export class ShuntingYardTracer extends BaseTracer {
     this.pointer = i;
     this.input[i].state = "active";
     this.stack.push({ id: `s${this.sc++}`, value: this.input[i].value, index: this.stack.length, state: "swap" });
-    this.snap(why ?? `Push '${this.input[i].value}' onto the operator stack; it waits for its operands.`, line, "push");
+    this.snap(
+      `Push '${this.input[i].value}' onto the operator stack.`,
+      line,
+      "push",
+      why ??
+        `'${this.input[i].value}' cannot act yet — its second operand is still ahead in the input, and nothing left on the stack outranks it, so it waits.`,
+    );
     return this;
   }
 
   /** '(' → push it as a fence; nothing pops past it until its ')'. */
-  pushParen(i: number, line: Line): this {
+  pushParen(i: number, line: Line, why?: string): this {
     this.pointer = i;
     this.input[i].state = "active";
     this.stack.push({ id: `s${this.sc++}`, value: "(", index: this.stack.length, state: "swap" });
-    this.snap("A left parenthesis — push it. It fences off the operators inside; nothing pops past it until its ')' arrives.", line, "push");
+    this.snap(
+      "A left parenthesis — push it onto the stack.",
+      line,
+      "push",
+      why ??
+        "'(' is a fence: everything inside it must finish before anything outside, so no operator may pop past it until its ')' arrives.",
+    );
     return this;
   }
 
   /** Light up the incoming operator and the stack top together — the precedence test. */
-  compareTop(i: number, line: Line, why: string): this {
+  compareTop(i: number, line: Line, why?: string): this {
     this.pointer = i;
     this.input[i].state = "compare";
     const t = this.stack[this.stack.length - 1];
     if (t) t.state = "compare";
-    this.snap(why, line, "compare");
+    this.snap(
+      `Compare '${this.input[i].value}' against the stack top '${t?.value ?? "∅"}'.`,
+      line,
+      "compare",
+      why,
+    );
     return this;
   }
 
   /** Pop the stack top to the output (precedence forced it, or draining at the end). */
+  /** @deprecated Provide a `why` — a pop is always forced by something; name it. */
+  popToOutput(line: Line): this;
+  popToOutput(line: Line, why: string): this;
   popToOutput(line: Line, why?: string): this {
     const t = this.stack.pop();
     if (t) {
       this.output.push({ id: `o${this.oc++}`, value: t.value, index: this.output.length, state: "active" });
-      this.snap(why ?? `Pop '${t.value}' to output.`, line, "pop");
+      this.snap(`Pop '${t.value}' to output.`, line, "pop", why);
     }
     return this;
   }
 
   /** ')' → pop the matching '(' and discard both parens; they never reach output. */
-  discardParen(i: number, line: Line): this {
+  discardParen(i: number, line: Line, why?: string): this {
     this.pointer = i;
     this.input[i].state = "active";
     this.stack.pop(); // the matching '('
-    this.snap("Reached the matching '(' — discard both parentheses. Their grouping is now baked into the order of the output.", line, "pop");
-    return this;
-  }
-
-  finish(line: Line): this {
-    const postfix = this.output.map((c) => c.value).join(" ") || "∅";
     this.snap(
-      `Done: ${postfix}. No parentheses, no precedence table — the stack turned both into plain left-to-right order.`,
+      "Reached the matching '(' — discard both parentheses.",
       line,
-      "done",
+      "pop",
+      why ??
+        "Their grouping job is done — the order they enforced is now baked into the output, and postfix needs no parentheses at all.",
     );
     return this;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  finish(line: Line, why?: string): this {
+    const postfix = this.output.map((c) => c.value).join(" ") || "∅";
+    this.snap(
+      `Done: ${postfix}.`,
+      line,
+      "done",
+      why ?? "No parentheses and no precedence table remain — the stack turned both into plain left-to-right order.",
+    );
+    return this;
+  }
+
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const scene: StackScene = {
       kind: "stack",
@@ -115,10 +153,17 @@ export class ShuntingYardTracer extends BaseTracer {
       input: { cells: this.input.map((c) => ({ ...c })), pointer: this.pointer, label: this.inputLabel },
       output: { cells: this.output.map((c) => ({ ...c })), label: "postfix" },
     };
-    this.commit(scene, narration, codeLines, op, {
-      top: this.top() ?? "∅",
-      output: this.output.map((c) => c.value).join(" ") || "∅",
-    });
+    this.commit(
+      scene,
+      narration,
+      codeLines,
+      op,
+      {
+        top: this.top() ?? "∅",
+        output: this.output.map((c) => c.value).join(" ") || "∅",
+      },
+      why,
+    );
     // Transients settle after the snapshot (the StackTracer pattern): consumed
     // input recedes, stack highlights relax, freshly-landed output settles.
     for (const c of this.input) if (c.state === "active" || c.state === "compare") c.state = "visited";
