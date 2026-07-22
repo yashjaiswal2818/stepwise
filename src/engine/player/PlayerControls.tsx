@@ -3,14 +3,28 @@
 import { useRef } from "react";
 import { RotateCcw, SkipBack, SkipForward, Play, Pause } from "lucide-react";
 import { usePlayer } from "./store";
+import { cn } from "@/lib/utils";
 
 const SPEEDS = [0.5, 1, 1.5, 2, 3];
 
-export function PlayerControls() {
+/** Optional "Quiz me" toggle, passed only by surfaces that support derived
+ *  predict-gates (the problem workspace). Selection is elevation + border,
+ *  never a tinted pill. */
+export interface QuizToggle {
+  on: boolean;
+  /** False when the trace has too few distinct moves to quiz. */
+  available: boolean;
+  onToggle: () => void;
+}
+
+export function PlayerControls({ quiz }: { quiz?: QuizToggle }) {
   const index = usePlayer((s) => s.index);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const speed = usePlayer((s) => s.speed);
   const total = usePlayer((s) => s.trace?.steps.length ?? 0);
+  // An open gate blocks the transport's advance controls — the store enforces
+  // it too, but a disabled control tells the truth while a dead one lies.
+  const gated = usePlayer((s) => !!s.gate);
 
   const last = Math.max(total - 1, 0);
   const pct = last > 0 ? (index / last) * 100 : 0;
@@ -52,8 +66,10 @@ export function PlayerControls() {
           <SkipBack className="size-4" />
         </button>
         <button
+          id="player-play"
           onClick={() => usePlayer.getState().toggle()}
-          className="mx-0.5 grid size-9 place-items-center rounded-full bg-accent text-accent-fg shadow-[var(--lift-hi)] transition-transform hover:scale-105 active:scale-95"
+          disabled={gated}
+          className="mx-0.5 grid size-9 place-items-center rounded-full bg-accent text-accent-fg shadow-[var(--lift-hi)] transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
           title="Play / pause (Space)"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
@@ -61,7 +77,7 @@ export function PlayerControls() {
         </button>
         <button
           onClick={() => usePlayer.getState().stepForward()}
-          disabled={index >= last}
+          disabled={index >= last || gated}
           className="grid size-8 place-items-center rounded-lg transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:pointer-events-none"
           title="Step forward (→)"
           aria-label="Step forward"
@@ -77,6 +93,23 @@ export function PlayerControls() {
       >
         {speed}×
       </button>
+
+      {quiz && (
+        <button
+          onClick={quiz.onToggle}
+          disabled={!quiz.available}
+          aria-pressed={quiz.on}
+          className={cn(
+            "rounded-md border px-1.5 py-0.5 text-2xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+            quiz.on
+              ? "border-line-strong bg-surface-3 text-fg"
+              : "border-line bg-surface-2 text-fg-muted hover:border-line-strong hover:text-fg",
+          )}
+          title={quiz.available ? "Pause before key moves and ask you to predict them" : "This trace has only one kind of move"}
+        >
+          Quiz me
+        </button>
+      )}
 
       <div
         ref={trackRef}

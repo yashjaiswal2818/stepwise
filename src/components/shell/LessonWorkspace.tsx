@@ -7,12 +7,14 @@ import { SplitView } from "./SplitView";
 import { VisualizationCanvas } from "@/engine/canvas/VisualizationCanvas";
 import { Legend } from "@/engine/canvas/Legend";
 import { PlayerControls } from "@/engine/player/PlayerControls";
+import { PredictGate } from "@/engine/player/PredictGate";
 import { CodePanel } from "@/engine/code/CodePanel";
 import { Narration } from "@/engine/code/Narration";
 import { WatchPanel } from "@/engine/code/WatchPanel";
 import { usePlayer } from "@/engine/player/store";
 import { usePlaybackLoop } from "@/engine/player/usePlaybackLoop";
 import { usePlayerHotkeys } from "@/engine/player/usePlayerHotkeys";
+import { authoredGates } from "@/engine/player/gates";
 import { useProgress } from "@/engagement/useProgress";
 import { getTrace } from "@/algorithms/getTrace";
 import type { ElementState } from "@/engine/types";
@@ -42,6 +44,18 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
 
   usePlaybackLoop();
   usePlayerHotkeys();
+
+  // Chapters carry AUTHORED gates only, exactly where the tracer staged them —
+  // no derived quizzing in an expository register. "Stop asking" is honored
+  // globally (expertise reversal: the learner means it everywhere).
+  const lessonGates = useProgress((s) => s.predictions.lessons);
+  const setPredictions = useProgress((s) => s.setPredictions);
+  const loadedTrace = usePlayer((s) => s.trace);
+  const gateOpen = usePlayer((s) => !!s.gate);
+  useEffect(() => {
+    if (!loadedTrace) return;
+    usePlayer.getState().setGates(lessonGates ? authoredGates(loadedTrace) : new Map());
+  }, [loadedTrace, lessonGates]);
 
   // A visit still counts toward the streak. Completion of a *lesson* is tracked
   // separately from solving a problem (see the `read`/`markRead` progress work),
@@ -82,9 +96,15 @@ export function LessonWorkspace({ meta }: { meta: LessonMeta }) {
       <div className="min-h-0 flex-1">
         <VisualizationCanvas />
       </div>
-      {/* Caption + variables read WITH the canvas, above the fixed transport. */}
+      {/* Caption + variables read WITH the canvas, above the fixed transport.
+          A chapter is expository, so the why register renders inline — problems
+          keep the reveal-on-demand default (the learner attempts the reason first). */}
       <div className="shrink-0">
-        <Narration />
+        {gateOpen ? (
+          <PredictGate onStopAsking={() => setPredictions({ lessons: false })} />
+        ) : (
+          <Narration whyMode="inline" />
+        )}
         <WatchPanel />
         <Legend states={legend} />
         <PlayerControls />

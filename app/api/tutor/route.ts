@@ -80,6 +80,12 @@ const TOOLS: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "pose_prediction",
+    description:
+      "Pause and ask the learner to predict the algorithm's next move before it plays. Use when they are passively watching, or to re-test an idea after a wrong prediction. Does nothing if a prediction is already on screen.",
+    schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+  },
 ];
 
 interface TutorContext {
@@ -92,11 +98,30 @@ interface TutorContext {
   stepIndex: number;
   stepTotal: number;
   narration?: string;
+  /** The step's why register — ground truth for "why did the algorithm do this". */
+  why?: string;
+  /** Predict-gate on the current step, if any. answerIndex is already
+   *  client-visible (traces execute in the browser), so forwarding it adds no
+   *  extraction risk beyond the full solution code above. */
+  ask?: {
+    id: string;
+    prompt: string;
+    options: { text: string; why: string }[];
+    answerIndex: number;
+  };
   vars?: Record<string, unknown>;
   sceneKind?: string;
   datasets: { id: string; label: string }[];
   datasetId: string;
   custom: string | null;
+  /** A predict-gate currently interrupting playback (runtime state, distinct
+   *  from `ask` which is the step's authored data). While open, Ada must never
+   *  resolve it — hence the options are in context, so she knows what NOT to say. */
+  gate?: { open: boolean; prompt: string; options: string[] } | null;
+  /** The learner's last few wrong predictions this run, oldest first. */
+  misses?: { picked: string; actual: string; why?: string }[];
+  /** Per-run gate stats — context for tone, never content to recite. */
+  predictions?: { asked: number; correct: number; skipped: number };
 }
 
 interface ChatMessage {
@@ -129,6 +154,7 @@ function systemPrompt(ctx: TutorContext): string {
     "- Escalate only after two or three real attempts. Then give a bigger hint — still not the whole answer.",
     "- When they're wrong, don't just correct them. Point at the thing on screen that contradicts them and let them notice it themselves.",
     "- After they work something out, ask them to say it back in their own words. That's what makes it stick.",
+    "- When the step context carries a 'why', treat it as ground truth for what this step must teach. Quiz against it: ask the learner to supply the reason before you restate it — 'why did the algorithm have to do this?' beats re-describing what happened.",
     "",
     "Where that stops applying — over-withholding is its own failure, so read this carefully:",
     "- Explaining what is on screen right now is always fine. That is what this app is for. If they ask you to explain this step, explain this step.",
@@ -137,6 +163,7 @@ function systemPrompt(ctx: TutorContext): string {
     "- Never refuse to help. Withholding the answer is not the same as withholding help. If they have genuinely worked at it and are still stuck, help them.",
     "",
     "You can control the visualization with tools. When the learner asks to see, run, jump to, play, pause, or try something, CALL the matching tool AND briefly say what you did in one sentence. Always include a short text reply alongside any tool call. Never reference a step or dataset that isn't in the context below.",
+    "pose_prediction pauses the visualization and asks the learner to call the next move. Use it when they are passively watching or to re-test an idea after a wrong prediction — at most one at a time, never twice in a row, never while a prediction is already on screen, and always with a sentence of your own alongside.",
     "A tool call never replaces substance. Showing complements telling — a jump must come WITH a sentence of reasoning or a question, never on its own. And never jump to the step that's already on screen; that does nothing. If a question is conceptual, answer the concept (or ask a leading question); don't deflect into a tool call.",
     "Keep replies tight — aim for 60–100 words, and don't exceed ~120 unless the learner explicitly asks you to go deeper. A long answer does their thinking for them.",
     "",
@@ -146,6 +173,27 @@ function systemPrompt(ctx: TutorContext): string {
     "",
     "Where the learner is right now:",
     `- Step ${ctx.stepIndex} of ${ctx.stepTotal}: ${ctx.narration ?? ""}`,
+    ctx.why ? `- Why this step had no choice: ${ctx.why}` : "",
+    ctx.ask
+      ? `- Predict-gate on this step: "${ctx.ask.prompt}" Options: ${ctx.ask.options
+          .map((o, i) => `[${i}] ${o.text}`)
+          .join(" ")} (correct: ${ctx.ask.answerIndex}). The learner may not have answered yet: NEVER state, confirm, or eliminate an option until they commit to a pick. If they picked wrong, coach with that option's feedback: ${ctx.ask.options
+          .map((o, i) => `[${i}] ${o.why}`)
+          .join(" ")}`
+      : "",
+    ctx.gate?.open
+      ? `- A prediction is OPEN on screen right now: "${ctx.gate.prompt}" (options: ${ctx.gate.options.join(
+          " / ",
+        )}). Do not state, hint at, or eliminate any option. Socratic questions pointed at the on-screen evidence only — explaining the CONCEPTS the question uses is fine; resolving the question is not.`
+      : "",
+    ctx.misses?.length
+      ? `- Recent wrong predictions (newest last): ${ctx.misses
+          .map((m) => `picked "${m.picked}" but the algorithm did "${m.actual}"${m.why ? ` — because ${m.why}` : ""}`)
+          .join("; ")}. When relevant, name the mismatch plainly ("You predicted X — it did Y"), then ask for the distinguishing evidence. These reasons are ground truth; never invent one that contradicts them.`
+      : "",
+    ctx.predictions && ctx.predictions.asked > 0
+      ? `- Predictions this run: ${ctx.predictions.correct}/${ctx.predictions.asked} called. Context for your tone, not content — the transport shows numbers; you own reasons.`
+      : "",
     `- Variables in scope: ${vars}`,
     `- Structure on screen: ${ctx.sceneKind ?? "unknown"}`,
     "",
