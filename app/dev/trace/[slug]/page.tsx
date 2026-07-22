@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTrace } from "@/algorithms/getTrace";
 import type { Scene } from "@/engine/types";
+
+// Keep this internal tool out of every index, belt-and-suspenders with the
+// production notFound() below. platform-engineer still owns the missing
+// environment guard that would stop it shipping in the bundle at all.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function summarize(scene: Scene): string {
   if (scene.kind === "array") {
