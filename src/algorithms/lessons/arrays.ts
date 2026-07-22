@@ -61,6 +61,7 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     "Ask for four slots. You get four boxes, side by side, and nothing in them yet. The boxes exist before the values do.",
     L.alloc,
     "init",
+    "Reserving all four up front is the array's defining trade: space committed now, in exchange for instant arrival at any slot later.",
   );
   t.note(
     "The small number under each box is its index — where the box sits, not what it holds. Counting starts at 0, so the fourth box is index 3.",
@@ -68,10 +69,18 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     "init",
   );
 
+  // Each write carries a different claim about the same move — repeated whys
+  // would be noise; varied ones build the model one property at a time.
+  const WRITE_WHY = [
+    "Writing fills a box that already exists — allocation made the room; the write only changes contents.",
+    "Slot 1 does not care what slot 0 holds — every box is independent, and filling one never touches its neighbours.",
+    "The row is no wider with three values than it was empty — the space was paid for at allocation, not at write time.",
+    "The last write costs no more than the first — position 3 was always exactly three boxes from the start.",
+  ];
   VALUES.forEach((v, i) => {
     t.written(2 + i);
     t.setValue(i, v).mark([i], "swap");
-    t.note(`Put ${v} into slot ${i}.`, WRITE_LINE[i], "set");
+    t.note(`Put ${v} into slot ${i}.`, WRITE_LINE[i], "set", WRITE_WHY[i]);
   });
 
   t.note(
@@ -87,16 +96,19 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     `Read scores[2]. It is ${TARGET} — and slots 0 and 1 were never touched on the way there.`,
     L.read,
     "visit",
+    "Nothing needed checking on the way — where slot 2 lives is computable before looking at anything.",
   );
   t.note(
     "Every box is the same size, so slot i always sits the same distance from the start: skip i boxes. The machine computes that distance and arrives in one move.",
     L.read,
     "visit",
+    "Uniform box size is the whole trick — if boxes varied, the only way to find slot i would be to walk past every box before it, counting as you go.",
   );
   t.note(
     "That is why reading by index costs the same whether the array holds four values or four million. It is arithmetic, not searching.",
     L.read,
     "visit",
+    "The work is one multiplication and one addition — n never appears in the formula.",
   );
   t.release([2]);
 
@@ -106,6 +118,7 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     "The array also knows how many slots it has. That number is stored, not counted, so asking for the length is free too.",
     L.len,
     "init",
+    "Counting boxes would cost n looks — writing the count down once at allocation makes the question cost one.",
   );
 
   t.written(10);
@@ -115,6 +128,7 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     "Overwrite slot 1 with 95. Same box, same position, new contents — nothing else in the row moves.",
     L.rewrite,
     "set",
+    "An overwrite reuses the slot's address — the same arithmetic that reads it finds it, so changing a value is O(1) too.",
   );
 
   // ---- the contrast: searching by value ----
@@ -123,6 +137,7 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     `Now turn it around. Reading scores[2] worked because we already knew the index. What if we know the value — ${TARGET} — and want to find out where it is?`,
     [L.loop, L.test, L.close],
     "init",
+    "The array maps index → position, never value → position. Nothing points backward, so the only way to find a value is to look.",
   );
 
   let reads = 0;
@@ -133,7 +148,12 @@ export function whatIsAnArrayTrace(_values: (number | string)[], datasetId = "de
     if (t.value(i) === TARGET) {
       t.note(`scores[${i}] is ${TARGET}. Found it.`, L.test, "compare");
       t.clearPointer("i").clearVar("i");
-      t.markFinal(i, L.test, `${TARGET} is at index ${i} — after ${reads} reads.`);
+      t.markFinal(
+        i,
+        L.test,
+        `${TARGET} is at index ${i} — after ${reads} reads.`,
+        `Position ${i} is knowledge the search paid ${reads} reads to earn — the array itself never knew where ${TARGET} lived.`,
+      );
       break;
     }
     t.note(`scores[${i}] is ${t.value(i)}, not ${TARGET}. Keep looking.`, L.test, "compare");

@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { Play, ArrowRight } from "lucide-react";
 import { PROBLEMS } from "@/curriculum/catalog";
-import { LESSONS } from "@/curriculum/lesson-catalog";
+import { FOUNDATIONS } from "@/curriculum/foundations";
 import { frontierProblem } from "@/curriculum/learn-order";
 import { useProgress } from "@/engagement/useProgress";
 import { useMounted } from "@/lib/useMounted";
 import { buttonVariants } from "@/design-system/ui/Button";
 import { cn } from "@/lib/utils";
 
-/** Where a brand-new learner begins — the first (and today only) chapter. */
-const FIRST_LESSON = LESSONS.arrays;
+/** Where a brand-new learner begins — the first Foundations unit. */
+const FIRST_UNIT = FOUNDATIONS[0];
 
 /**
  * The lead for The Index. Deliberately lean: it carries exactly two jobs —
@@ -59,15 +59,13 @@ export function LearnLead() {
           <p className="mt-1 max-w-md text-md leading-relaxed text-fg-muted">
             Eight structures, in a suggested order. Open any one.
           </p>
-          {FIRST_LESSON && (
-            <Link
-              href={`/learn/${FIRST_LESSON.structure}`}
-              className={cn(buttonVariants({ variant: "primary", size: "md" }), "mt-4 w-full sm:w-auto")}
-            >
-              <Play className="size-4 shrink-0" aria-hidden />
-              Begin: {FIRST_LESSON.title}
-            </Link>
-          )}
+          <Link
+            href={`/learn/foundations/${FIRST_UNIT.slug}`}
+            className={cn(buttonVariants({ variant: "primary", size: "md" }), "mt-4 w-full sm:w-auto")}
+          >
+            <Play className="size-4 shrink-0" aria-hidden />
+            Begin: {FIRST_UNIT.title}
+          </Link>
         </>
       )}
 

@@ -41,8 +41,11 @@ export function VisualizationCanvas() {
   if (!step) {
     return <div className="grid h-full place-items-center text-sm text-fg-faint">Loading…</div>;
   }
+  // The why register rides the same label so the reasoning is not sighted-only —
+  // still one live surface (see Narration.tsx for why there is no second region).
+  const label = step.why ? `${step.narration} Why: ${step.why}` : step.narration;
   return (
-    <div className="relative h-full w-full p-5 sm:p-8" role="img" aria-label={step.narration}>
+    <div className="relative h-full w-full p-5 sm:p-8" role="img" aria-label={label}>
       <MotionConfig transition={SPRING}>
         <Dispatch scene={step.scene} />
       </MotionConfig>

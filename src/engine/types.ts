@@ -178,6 +178,33 @@ export type StepOp =
   | "mark"
   | "done";
 
+/** One answer option of a predict-gate. Every option — right or wrong — carries
+ *  its own feedback line: for the correct option, the constraint that made it
+ *  right; for a distractor, the misconception it encodes and what on screen
+ *  contradicts it. A distractor without a diagnosis is decoration. */
+export interface AskOption {
+  text: string;
+  why: string;
+}
+
+/** A predict-gate authored onto a step. The gate is posed BEFORE this step's
+ *  action is revealed (the player is still showing step i-1's scene); answering
+ *  — or skipping — reveals the step. Pure data: serializable, renderer-agnostic,
+ *  and recomputed per dataset because the trace is executed, so prompts may
+ *  quote live values ("the top is '['"). A player that ignores `ask` plays the
+ *  trace linearly, unchanged. */
+export interface Ask {
+  /** Stable within the trace and stable across edits — name the moment
+   *  ("vp-first-close"), never the step index. Progress keys on (slug, id).
+   *  `answerIndex` is client-visible by construction (traces execute in the
+   *  browser), so gate results are self-reported, like all progress. */
+  id: string;
+  prompt: string;
+  /** 2–4 options. Keep distractors real misconceptions, not filler. */
+  options: AskOption[];
+  answerIndex: number;
+}
+
 export interface Step {
   /** 0-based index in the trace. */
   i: number;
@@ -185,11 +212,19 @@ export interface Step {
   scene: Scene;
   /** Human-readable explanation of this step ("comparing 4 and 8"). */
   narration: string;
+  /** WHY register — the constraint or invariant that FORCED this move, or the
+   *  counterfactual (what would break otherwise). Never a restatement of
+   *  `narration`: a why that could be deleted without losing information beyond
+   *  the narration is a bad why. One sentence, plain text, display-ready.
+   *  Absent = the UI hides the register entirely. */
+  why?: string;
   /** 1-based source line(s) to highlight. */
   codeLines: number[];
   op?: StepOp;
   /** Scalar watch values shown in the Watch panel (i, j, sum, low, high…). */
   vars?: Record<string, string | number>;
+  /** Predict-gate posed before this step is revealed. Never on step 0. */
+  ask?: Ask;
   /** Lessons only: how many lines of `code` exist yet — the code panel shows the
    *  program only as far as it has been written, so a beginner watches code
    *  appear line by line. Absent on problem traces (the whole source is shown). */

@@ -62,7 +62,15 @@ export default async function LessonPage({ params }: { params: Promise<{ structu
         ]}
       />
       <Navbar />
-      <LessonWorkspace meta={meta} />
+      <LessonWorkspace
+        view={{
+          exampleId: meta.exampleId,
+          title: meta.title,
+          about: meta.about,
+          kicker: `Chapter · ${meta.structure}`,
+          href: `/learn/${structure}`,
+        }}
+      />
     </div>
   );
 }

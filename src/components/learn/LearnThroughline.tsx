@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LearnLead } from "./LearnLead";
 import { LearnSection } from "./LearnSection";
+import { FoundationsSection } from "./FoundationsSection";
 import { ContinuePill } from "./ContinuePill";
 import { STRUCTURES } from "@/curriculum/structures";
 import { PROBLEMS } from "@/curriculum/catalog";
@@ -22,14 +23,16 @@ const TITLE: Record<string, string> = Object.fromEntries(STRUCTURES.map((s) => [
 
 /**
  * The Index — /learn as an achromatic reading instrument. One vertical spine
- * through the eight structures in a suggested order; the spine's ink IS your
- * progress; every section is collapsed to one line except the one you're on. No
- * colour anywhere, so chroma stays reserved entirely for a running algorithm.
+ * through the Foundations layer and the eight structures in a suggested order;
+ * the spine's ink IS your progress (problems only); every section is collapsed
+ * to one line except the one you're on. No colour anywhere, so chroma stays
+ * reserved entirely for a running algorithm.
  */
 export function LearnThroughline() {
   const solved = useProgress((s) => s.solved);
   const streak = useProgress((s) => s.streak);
   const lastVisited = useProgress((s) => s.lastVisited);
+  const mode = useProgress((s) => s.mode);
   const mounted = useMounted();
 
   const solvedSet = new Set(mounted ? solved : []);
@@ -38,10 +41,28 @@ export function LearnThroughline() {
   const frontierSlug = mounted ? frontierProblem(solved)?.slug ?? null : null;
   const frontierSec = mounted ? frontierSection(solved, lastVisited) : null;
 
+  // A cold-start beginner starts at Foundations, so it opens by default — and
+  // WHILE that condition holds, the frontier section's auto-open (and its
+  // "you are here" grammar) is suppressed: one visual anchor, never two open
+  // sections, never two toys. Learner toggles override either way.
+  const foundationsDefault = mounted && solved.length === 0 && mode === "beginner";
+
   // Default-open is the frontier section; a toggle records an override.
+  // "foundations" shares the overrides map — it can never collide with a
+  // StructureSlug.
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
-  const isOpen = (slug: string) => overrides[slug] ?? slug === frontierSec;
+  const isOpen = (slug: string) => overrides[slug] ?? (slug === frontierSec && !foundationsDefault);
   const toggle = (slug: string) => setOverrides((o) => ({ ...o, [slug]: !isOpen(slug) }));
+
+  const foundationsOpen = overrides.foundations ?? foundationsDefault;
+  const toggleFoundations = () => setOverrides((o) => ({ ...o, foundations: !foundationsOpen }));
+  // The escape hatch: collapse Foundations and hand focus to the Arrays header
+  // (its toggle button — always in the DOM, LearnSection's aria-controls
+  // contract). Marks nothing; the learner opens Arrays themselves.
+  const skipFoundations = () => {
+    setOverrides((o) => ({ ...o, foundations: false }));
+    document.querySelector<HTMLButtonElement>('[aria-controls="learn-section-arrays"]')?.focus();
+  };
 
   // The ink advances only when your progress actually increased since the last
   // /learn view — a plain reload never re-fills from zero (a banned load flourish).
@@ -91,6 +112,15 @@ export function LearnThroughline() {
           aria-hidden
         />
 
+        {/* The prerequisite layer sits above the first structure. Its progress
+            never feeds the spine's ink — the ink measures problems. */}
+        <FoundationsSection
+          isAnchor={foundationsDefault}
+          open={foundationsOpen}
+          onToggle={toggleFoundations}
+          onSkipToArrays={skipFoundations}
+        />
+
         {LEARN_ORDER.map((slug) => {
           const { done, total: t } = sectionProgress(slug, solved);
           return (
@@ -101,7 +131,7 @@ export function LearnThroughline() {
               problems={problemsIn(slug)}
               done={done}
               total={t}
-              isFrontier={mounted && slug === frontierSec}
+              isFrontier={mounted && slug === frontierSec && !foundationsDefault}
               frontierSlug={frontierSlug}
               solvedSet={solvedSet}
               open={isOpen(slug)}

@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { X, ArrowUp, CornerDownRight, ArrowRight } from "lucide-react";
 import { usePlayer } from "@/engine/player/store";
 import { useWorkspace } from "@/engine/player/workspace";
+import { nextEligibleIndex, synthesizeAsk } from "@/engine/player/gates";
 import { getExample } from "@/algorithms/registry";
 import { getCustomSpec } from "@/algorithms/custom";
 import { getLesson } from "@/curriculum/lessons";
@@ -57,11 +58,18 @@ function buildContext(problem: Problem) {
     stepIndex: p.index + 1,
     stepTotal: p.trace?.steps.length ?? 0,
     narration: step?.narration,
+    why: step?.why,
+    ask: step?.ask,
     vars: step?.vars,
     sceneKind: step?.scene.kind,
     datasets: ex?.datasets.map((d) => ({ id: d.id, label: d.label })) ?? [],
     datasetId: useWorkspace.getState().datasetId,
     custom: customNote,
+    // Predict-gate runtime: what is open (so Ada never resolves it), what was
+    // missed (so she coaches from ground truth), and this run's stats (tone).
+    gate: p.gate ? { open: p.gate.phase === "open", prompt: p.gate.ask.prompt, options: p.gate.ask.options.map((o) => o.text) } : null,
+    misses: p.missLog.slice(-3).map((m) => ({ picked: m.picked, actual: m.actual, why: m.why })),
+    predictions: p.gateStats,
   };
 }
 
@@ -85,6 +93,8 @@ function describeAction(a: Action, slug: string): string {
     }
     case "run_custom_input":
       return `Ran on ${String(a.input.values ?? "")}`;
+    case "pose_prediction":
+      return "Asked you to predict the next move";
     default:
       return "";
   }
@@ -125,6 +135,16 @@ function runAction(a: Action, slug: string): string {
       return res.ok
         ? `Ran on ${valuesText}${argText ? ` (target ${argText})` : ""}`
         : `Couldn't run that — ${res.error}`;
+    }
+    case "pose_prediction": {
+      // Validated like every tool: no-op when a gate is already open, when the
+      // trace has nothing predictable ahead, or when the ask can't synthesize.
+      if (p.gate || !p.trace) return "";
+      const k = nextEligibleIndex(p.trace, p.index);
+      if (k == null) return "";
+      const ask = synthesizeAsk(p.trace, k);
+      if (!ask) return "";
+      return p.requestGate(k, ask, "ada") ? "Asked you to predict the next move" : "";
     }
     default:
       return "";

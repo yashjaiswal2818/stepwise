@@ -48,6 +48,13 @@ export function infixToPostfixTrace(tokens: string[], datasetId = "default"): Tr
     L.loop,
   );
 
+  // The thesis gate fires once, at the first STRICT precedence-forced pop — the
+  // exact moment "why did that pop?" has a one-word answer (precedence). Only
+  // the strict case is staged: the equal-precedence pop is about associativity,
+  // a subtler story that should not share a gate. State-dependent staging means
+  // a dataset with no strict pop simply has no gate — never a wrong one.
+  let askedPrecedence = false;
+
   for (let i = 0; i < tokens.length; i++) {
     const tk = tokens[i];
     if (isOperand(tk)) {
@@ -56,17 +63,38 @@ export function infixToPostfixTrace(tokens: string[], datasetId = "default"): Tr
       t.pushParen(i, L.lparen);
     } else if (tk === ")") {
       while (t.top() !== undefined && t.top() !== "(") {
-        t.popToOutput(L.rparen, `Emptying the parentheses — pop '${t.top()}' to output before the '('.`);
+        t.popToOutput(
+          L.rparen,
+          `'${t.top()}' lives inside the fence — it must finish before the '(' lifts, so it empties to output now.`,
+        );
       }
       t.discardParen(i, L.dropParen);
     } else {
       // An operator. Pop everything already on the stack that must act first.
       while (t.top() !== undefined && t.top() !== "(" && PREC[t.top()!] >= PREC[tk]) {
         const topOp = t.top()!;
-        const reason =
-          PREC[topOp] > PREC[tk]
-            ? `'${topOp}' binds tighter than '${tk}' (precedence ${PREC[topOp]} vs ${PREC[tk]}) — it must act first, so pop it to output.`
-            : `'${topOp}' has equal precedence and '${tk}' is left-associative, so '${topOp}' goes first — pop it.`;
+        const strict = PREC[topOp] > PREC[tk];
+        if (strict && !askedPrecedence) {
+          askedPrecedence = true;
+          t.ask({
+            id: "ip-precedence-pop",
+            prompt: `The next token is '${tk}'. '${topOp}' is on top of the stack. What must happen before '${tk}' can go on?`,
+            options: [
+              {
+                text: `Push '${tk}' on top of '${topOp}'`,
+                why: `If '${tk}' sat on top it would pop first — and postfix runs in pop order, so '${tk}' would act before the '${topOp}' it is supposed to wait for.`,
+              },
+              {
+                text: `Pop '${topOp}' to the output first`,
+                why: `'${topOp}' binds tighter (precedence ${PREC[topOp]} vs ${PREC[tk]}). Output order is pop order — whatever leaves the stack first runs first — so popping now is how precedence becomes order.`,
+              },
+            ],
+            answerIndex: 1,
+          });
+        }
+        const reason = strict
+          ? `'${topOp}' binds tighter than '${tk}' (precedence ${PREC[topOp]} vs ${PREC[tk]}) — it must act first, so it leaves for the output now.`
+          : `'${topOp}' has equal precedence and '${tk}' is left-associative, so the earlier operator goes first — '${topOp}' leaves before '${tk}' may sit down.`;
         t.popToOutput(L.popHigher, reason);
       }
       t.pushOp(i, L.pushOp);
@@ -74,7 +102,10 @@ export function infixToPostfixTrace(tokens: string[], datasetId = "default"): Tr
   }
 
   while (t.top() !== undefined) {
-    t.popToOutput(L.drain, `Input is done — drain the stack: pop '${t.top()}' to output.`);
+    t.popToOutput(
+      L.drain,
+      `'${t.top()}' has nothing left to wait for — the input is exhausted, so the remaining operators leave in stack order.`,
+    );
   }
   t.finish(L.ret);
 

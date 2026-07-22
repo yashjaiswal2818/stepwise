@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { SplitView } from "./SplitView";
 import { CustomInput } from "./CustomInput";
 import { VisualizationCanvas } from "@/engine/canvas/VisualizationCanvas";
 import { Legend } from "@/engine/canvas/Legend";
 import { PlayerControls } from "@/engine/player/PlayerControls";
+import { PredictGate } from "@/engine/player/PredictGate";
 import { CodePanel } from "@/engine/code/CodePanel";
 import { Narration } from "@/engine/code/Narration";
 import { WatchPanel } from "@/engine/code/WatchPanel";
@@ -14,7 +15,16 @@ import { usePlayer } from "@/engine/player/store";
 import { useWorkspace } from "@/engine/player/workspace";
 import { usePlaybackLoop } from "@/engine/player/usePlaybackLoop";
 import { usePlayerHotkeys } from "@/engine/player/usePlayerHotkeys";
+import {
+  authoredGates,
+  clampFade,
+  derivedGates,
+  fadedGates,
+  isQuizzable,
+  mergeSchedules,
+} from "@/engine/player/gates";
 import { useProgress } from "@/engagement/useProgress";
+import { Button } from "@/design-system/ui/Button";
 import { getTrace } from "@/algorithms/getTrace";
 import { getExample } from "@/algorithms/registry";
 import { buildCustomTrace, getCustomSpec } from "@/algorithms/custom";
@@ -77,6 +87,47 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
 
   usePlaybackLoop();
   usePlayerHotkeys();
+
+  // ---- predict-gates -------------------------------------------------------
+  // Scheduling is deliberately DECOUPLED from trace loading: this effect only
+  // calls setGates, never load(), so flipping "Quiz me" or promoting a fade
+  // level can never yank the learner back to step 0 or wipe their run stats.
+  const quizPref = useProgress((s) => s.predictions.problems);
+  const setPredictions = useProgress((s) => s.setPredictions);
+  const fadeStored = useProgress((s) => s.fade[exampleId] ?? 0);
+  const setFade = useProgress((s) => s.setFade);
+  const loadedTrace = usePlayer((s) => s.trace);
+  const gateOpen = usePlayer((s) => !!s.gate);
+  const gateStats = usePlayer((s) => s.gateStats);
+  // One-run deep-link overrides: ?quiz=1 (the bridge's "training wheels" link)
+  // and ?fade=N. They never flip the persisted preference.
+  const [override, setOverride] = useState<{ quiz: boolean; fade: number | null }>({ quiz: false, fade: null });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const f = params.get("fade");
+    // Post-hydration URL read is this file's established deep-link pattern
+    // (?dataset/?step above). Reading in a lazy initializer instead would make
+    // the server and client first renders disagree (aria-pressed on the quiz
+    // chip) — a hydration error, which is the worse trade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOverride({ quiz: params.has("quiz"), fade: f != null ? parseInt(f, 10) : null });
+  }, [exampleId]);
+
+  const fadeLevel = clampFade(override.fade ?? fadeStored);
+  const quizOn = quizPref || override.quiz || fadeLevel > 0;
+  const quizzable = loadedTrace ? isQuizzable(loadedTrace) : false;
+
+  useEffect(() => {
+    if (!loadedTrace) return;
+    const authored = authoredGates(loadedTrace);
+    const schedule =
+      fadeLevel > 0
+        ? mergeSchedules(authored, fadedGates(loadedTrace, fadeLevel))
+        : quizOn
+          ? mergeSchedules(authored, derivedGates(loadedTrace))
+          : new Map();
+    usePlayer.getState().setGates(schedule);
+  }, [loadedTrace, quizOn, fadeLevel]);
 
   // Engagement: register a daily visit, and mark solved once the run is stepped to the end.
   const markSolved = useProgress((s) => s.markSolved);
@@ -156,12 +207,73 @@ export function ProblemWorkspace({ problem }: { problem: Problem }) {
       {/* The step's plain-English caption and its variables sit WITH the canvas —
           where the eye already is — reading like a figure caption beneath it. The
           transport is the hero control and stays pinned to the very bottom; only
-          the canvas above this group flexes. */}
+          the canvas above this group flexes. A predict-gate SWAPS into the
+          narration slot (same voice, different mood) rather than stacking. */}
       <div className="shrink-0">
-        <Narration />
+        {gateOpen ? (
+          <PredictGate
+            onStopAsking={() => {
+              setOverride((o) => ({ ...o, quiz: false, fade: null }));
+              setPredictions({ problems: false });
+            }}
+          />
+        ) : (
+          <Narration />
+        )}
+        {!gateOpen && atEnd && gateStats.asked > 0 && (
+          // End-of-run instrument reading. Numbers derive from the store —
+          // never invented — and promotion happens ONLY on the explicit
+          // "Run again" action, never reactively.
+          <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-3 sm:px-6">
+            <span className="font-mono text-xs tabular-nums text-fg-muted">
+              You called {gateStats.correct} of {gateStats.asked} moves.
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                const promotable =
+                  gateStats.skipped === 0 && gateStats.correct / gateStats.asked >= 0.75 && fadeLevel < 3;
+                if (promotable) setFade(exampleId, fadeLevel + 1);
+                setOverride((o) => ({ ...o, fade: null }));
+                usePlayer.getState().reset();
+              }}
+            >
+              {gateStats.skipped === 0 && gateStats.correct / gateStats.asked >= 0.75 && fadeLevel < 3
+                ? "Run again — you drive more of it"
+                : "Run again"}
+            </Button>
+            {fadeLevel > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFade(exampleId, fadeLevel - 1);
+                  setOverride((o) => ({ ...o, fade: null }));
+                  usePlayer.getState().reset();
+                }}
+                className="text-xs font-medium text-fg-muted hover:text-fg"
+              >
+                More worked steps
+              </button>
+            )}
+          </div>
+        )}
         <WatchPanel />
         <Legend states={legend} />
-        <PlayerControls />
+        <PlayerControls
+          quiz={{
+            on: quizOn,
+            available: quizzable,
+            onToggle: () => {
+              if (quizOn) {
+                setOverride({ quiz: false, fade: null });
+                setPredictions({ problems: false });
+              } else {
+                setPredictions({ problems: true });
+              }
+            },
+          }}
+        />
       </div>
     </div>
   );

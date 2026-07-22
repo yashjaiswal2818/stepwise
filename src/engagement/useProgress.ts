@@ -10,16 +10,31 @@ export interface LastVisited {
   title: string;
 }
 
+/** Predict-gate cadence preferences. Global, not per-problem: a learner who
+ *  says "stop asking" means it everywhere (expertise reversal), and one who
+ *  opts in wants it everywhere. */
+export interface Predictions {
+  lessons: boolean;
+  problems: boolean;
+}
+
 interface ProgressState {
   solved: string[];
   lastActive: string | null; // YYYY-MM-DD
   streak: number;
   mode: Mode;
   lastVisited: LastVisited | null;
+  predictions: Predictions;
+  /** Backward-fading level per exampleId (0–3): how much of a worked example
+   *  the LEARNER drives. Promoted only on an explicit "run again", demoted by
+   *  an explicit "more worked steps" — never silently. */
+  fade: Record<string, number>;
   markSolved: (slug: string) => void;
   registerActivity: () => void;
   setMode: (m: Mode) => void;
   setLastVisited: (v: LastVisited) => void;
+  setPredictions: (p: Partial<Predictions>) => void;
+  setFade: (exampleId: string, level: number) => void;
   reset: () => void;
 }
 
@@ -33,11 +48,20 @@ export const useProgress = create<ProgressState>()(
       streak: 0,
       mode: "beginner",
       lastVisited: null,
+      predictions: { lessons: true, problems: false },
+      fade: {},
 
       markSolved: (slug) =>
         set((s) => (s.solved.includes(slug) ? s : { solved: [...s.solved, slug] })),
 
       setLastVisited: (v) => set({ lastVisited: v }),
+
+      setPredictions: (p) => set((s) => ({ predictions: { ...s.predictions, ...p } })),
+
+      setFade: (exampleId, level) =>
+        set((s) => ({
+          fade: { ...s.fade, [exampleId]: Math.min(3, Math.max(0, Math.round(level))) },
+        })),
 
       registerActivity: () =>
         set((s) => {
@@ -49,7 +73,15 @@ export const useProgress = create<ProgressState>()(
         }),
 
       setMode: (mode) => set({ mode }),
-      reset: () => set({ solved: [], lastActive: null, streak: 0, lastVisited: null }),
+      reset: () =>
+        set({
+          solved: [],
+          lastActive: null,
+          streak: 0,
+          lastVisited: null,
+          predictions: { lessons: true, problems: false },
+          fade: {},
+        }),
     }),
     { name: "stepwise-progress" },
   ),

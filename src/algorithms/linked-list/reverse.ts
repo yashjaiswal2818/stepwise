@@ -50,28 +50,53 @@ export function reverseListTrace(values: number[], datasetId = "default"): Trace
   let cur: string | null = t.headId();
 
   t.setPointer("cur", cur, C.cur).setVars({ prev: "null", cur: t.valueOf(cur) });
-  t.step("Reverse the list by walking it once, flipping each node's next pointer to point backward.", L.init, "init");
+  t.step(
+    "Reverse the list by walking it once, flipping each node's next pointer to point backward.",
+    L.init,
+    "init",
+    "Each node knows only its next — the only way to reach a node is along an arrow that still points at it, which is exactly what flipping arrows threatens.",
+  );
 
   while (cur) {
     const next = t.nextOf(cur);
     t.setPointer("next", next, C.next).nodeState(cur, "active");
     t.setVars({ prev: t.valueOf(prev), cur: t.valueOf(cur), next: t.valueOf(next) });
-    t.step(`Save next = ${t.valueOf(next)} so we don't lose the rest of the list.`, L.save, "mark");
+    t.step(
+      `Save next = ${t.valueOf(next)} so we don't lose the rest of the list.`,
+      L.save,
+      "mark",
+      `Rewiring ${t.valueOf(cur)}.next severs the only route forward — without this saved pointer, everything after ${t.valueOf(cur)} would be unreachable, forever.`,
+    );
 
     t.rewire(cur, prev).edge(cur, "swap").nodeState(cur, "swap");
-    t.step(`Flip ${t.valueOf(cur)}.next to point back to ${t.valueOf(prev)}.`, L.rewire, "swap");
+    t.step(
+      `Flip ${t.valueOf(cur)}.next to point back to ${t.valueOf(prev)}.`,
+      L.rewire,
+      "swap",
+      `${t.valueOf(cur)} must point at the reversed part, and ${t.valueOf(prev)} is that part's head — the walk that brought us here can never pass this node again, which is why next was saved first.`,
+    );
 
     prev = cur;
     cur = next;
     t.setPointer("prev", prev, C.prev).setPointer("cur", cur, C.cur).clearPointer("next");
     t.setVars({ prev: t.valueOf(prev), cur: t.valueOf(cur) });
-    t.step(`Advance both pointers: prev = ${t.valueOf(prev)}, cur = ${t.valueOf(cur)}.`, L.advCur, "visit");
+    t.step(
+      `Advance both pointers: prev = ${t.valueOf(prev)}, cur = ${t.valueOf(cur)}.`,
+      L.advCur,
+      "visit",
+      `The invariant that keeps the loop safe: everything up to ${t.valueOf(prev)} is reversed, everything from ${t.valueOf(cur)} on is untouched — the boundary moves exactly one node per loop.`,
+    );
   }
 
   t.clearPointer("cur").clearPointer("next");
   for (let i = 0; i < values.length; i++) t.nodeState(t.id(i), "final");
   t.setVars({ prev: t.valueOf(prev) });
-  t.step(`Done — the new head is ${t.valueOf(prev)}. The list now runs in reverse.`, L.ret, "done");
+  t.step(
+    `Done — the new head is ${t.valueOf(prev)}. The list now runs in reverse.`,
+    L.ret,
+    "done",
+    `${t.valueOf(prev)} was the last node the walk reached — every arrow flipped exactly once, so the old tail is the new head and no node was ever copied or moved.`,
+  );
 
   return t.build({
     exampleId: "reverse-linked-list",

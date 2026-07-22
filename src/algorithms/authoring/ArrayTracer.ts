@@ -111,25 +111,25 @@ export class ArrayTracer extends BaseTracer {
   }
 
   // ---- semantic ops (each commits exactly one step) ----
-  note(narration: string, line: Line, op: StepOp = "init"): this {
-    this.snap(narration, line, op);
+  note(narration: string, line: Line, op: StepOp = "init", why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  setState(indices: number[], state: ElementState, narration: string, line: Line, op?: StepOp): this {
+  setState(indices: number[], state: ElementState, narration: string, line: Line, op?: StepOp, why?: string): this {
     for (const i of indices) this.cells[i].state = state;
-    this.snap(narration, line, op);
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  compare(i: number, j: number, line: Line, narration?: string): this {
+  compare(i: number, j: number, line: Line, narration?: string, why?: string): this {
     this.cells[i].state = "active";
     this.cells[j].state = "compare";
-    this.snap(narration ?? `Compare ${this.value(i)} and ${this.value(j)}`, line, "compare");
+    this.snap(narration ?? `Compare ${this.value(i)} and ${this.value(j)}`, line, "compare", why);
     return this;
   }
 
-  swap(i: number, j: number, line: Line, narration?: string): this {
+  swap(i: number, j: number, line: Line, narration?: string, why?: string): this {
     const a = this.value(i);
     const b = this.value(j);
     [this.cells[i], this.cells[j]] = [this.cells[j], this.cells[i]]; // id travels with the value
@@ -137,19 +137,19 @@ export class ArrayTracer extends BaseTracer {
     this.cells[j].index = j;
     this.cells[i].state = "swap";
     this.cells[j].state = "swap";
-    this.snap(narration ?? `Swap ${a} and ${b} — ${a} > ${b}`, line, "swap");
+    this.snap(narration ?? `Swap ${a} and ${b} — ${a} > ${b}`, line, "swap", why);
     return this;
   }
 
-  markFinal(i: number, line: Line, narration?: string): this {
+  markFinal(i: number, line: Line, narration?: string, why?: string): this {
     this.cells[i].state = "final";
-    this.snap(narration ?? `${this.value(i)} is now in its final position`, line, "mark");
+    this.snap(narration ?? `${this.value(i)} is now in its final position`, line, "mark", why);
     return this;
   }
 
-  finishAll(line: Line, narration: string): this {
+  finishAll(line: Line, narration: string, why?: string): this {
     for (const c of this.cells) c.state = "final";
-    this.snap(narration, line, "done");
+    this.snap(narration, line, "done", why);
     return this;
   }
 
@@ -158,24 +158,24 @@ export class ArrayTracer extends BaseTracer {
     this.auxLabel = label;
     return this;
   }
-  auxTake(value: number, targetIndex: number, sourceIndex: number, line: Line, narration: string): this {
+  auxTake(value: number, targetIndex: number, sourceIndex: number, line: Line, narration: string, why?: string): this {
     this.aux.push({ id: `x${this.auxCounter++}`, value, index: targetIndex, state: "swap" });
     this.cells[sourceIndex].state = "visited";
-    this.snap(narration, line, "insert");
+    this.snap(narration, line, "insert", why);
     return this;
   }
-  auxCopyBack(line: Line, narration: string): this {
+  auxCopyBack(line: Line, narration: string, why?: string): this {
     for (const c of this.aux) {
       this.cells[c.index].value = c.value;
       this.cells[c.index].state = "swap";
     }
     this.aux = [];
-    this.snap(narration, line, "set");
+    this.snap(narration, line, "set", why);
     return this;
   }
 
   // ---- snapshot ----
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const scene: ArrayScene = {
       kind: "array",
@@ -188,7 +188,7 @@ export class ArrayTracer extends BaseTracer {
       regions: this.regions.map((r) => ({ ...r })),
       aux: this.aux.length ? { cells: this.aux.map((c) => ({ ...c })), label: this.auxLabel } : undefined,
     };
-    this.commit(scene, narration, codeLines, op, { ...this.vars });
+    this.commit(scene, narration, codeLines, op, { ...this.vars }, why);
     // Reset transient highlights back to baseline; 'final' persists, and cells a
     // lesson explicitly `mark(..., { hold: true })` persist until `release`d.
     for (const c of this.cells) if (c.state !== "final" && !this.held.has(c.id)) c.state = "default";

@@ -54,7 +54,12 @@ export function bubbleSortTrace(values: number[], datasetId = "default"): Trace 
   const t = new ArrayTracer(values);
   const n0 = values.length;
 
-  t.note("Start — every element is unsorted. Bubble the largest to the end each pass.", L.func, "init");
+  t.note(
+    "Start — every element is unsorted. Bubble the largest to the end each pass.",
+    L.func,
+    "init",
+    "Only adjacent neighbours ever swap — a value can travel one seat per step, so order has to emerge from purely local decisions.",
+  );
 
   for (let n = n0; n > 1; n--) {
     t.setVar("pass", n0 - n + 1);
@@ -62,14 +67,32 @@ export function bubbleSortTrace(values: number[], datasetId = "default"): Trace 
       t.setPointer("j", j).setVar("j", j);
       t.compare(j, j + 1, L.compare);
       if (t.greater(j, j + 1)) {
-        t.swap(j, j + 1, L.swap);
+        const a = t.value(j);
+        const b = t.value(j + 1);
+        t.swap(
+          j,
+          j + 1,
+          L.swap,
+          undefined,
+          `${a} and ${b} are inverted, and adjacent inversions are the only thing bubble sort ever fixes — leave this one and it survives to the end.`,
+        );
       }
     }
     t.clearPointer("j").clearVar("j");
-    t.markFinal(n - 1, L.placed);
+    t.markFinal(
+      n - 1,
+      L.placed,
+      undefined,
+      `${t.value(n - 1)} is the largest of the first ${n} — the pass just swept it here, and no later pass reaches this far. Position ${n - 1} is proven, never revisited.`,
+    );
   }
 
-  t.markFinal(0, L.ret, "The smallest element is in place — the array is fully sorted!");
+  t.markFinal(
+    0,
+    L.ret,
+    "The smallest element is in place — the array is fully sorted!",
+    "Only one element remained unplaced, and one element cannot be out of order with itself.",
+  );
 
   return t.build({
     exampleId: "bubble-sort",

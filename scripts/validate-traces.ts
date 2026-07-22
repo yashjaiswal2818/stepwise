@@ -16,6 +16,23 @@ import { REGISTRY, type Dataset } from "../src/algorithms/registry";
 import type { Trace } from "../src/engine/types";
 import { checkTrace } from "./lib/trace-checks";
 
+/**
+ * The why-ratchet. A slug is added in the PR that retrofits its whys and is
+ * NEVER removed — once a trace explains itself, regressing to unexplained
+ * moves is a validation failure, not a style choice. (W1 + the coverage floor
+ * apply only to these; the shape checks on whys and asks run on every trace.)
+ */
+const WHY_ENFORCED = new Set<string>([
+  "infix-to-postfix",
+  "valid-parentheses",
+  "binary-search",
+  "queue",
+  "bubble-sort",
+  "two-sum",
+  "reverse-linked-list",
+  "lesson-arrays",
+]);
+
 function main(): void {
   const only = process.argv[2]; // optional: validate a single slug
   const entries = Object.entries(REGISTRY).filter(([slug]) => !only || slug === only);
@@ -41,7 +58,7 @@ function main(): void {
         continue;
       }
 
-      const errors = checkTrace(trace);
+      const errors = checkTrace(trace, { requireWhy: WHY_ENFORCED.has(slug) });
       if (errors.length) {
         failed++;
         console.error(`✗ ${slug} [${ds.id}] — ${errors.length} problem(s):`);

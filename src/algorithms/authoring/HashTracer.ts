@@ -28,47 +28,47 @@ export class HashTracer extends BaseTracer {
     return this.map.get(key)?.value;
   }
 
-  note(narration: string, line: Line, op: StepOp = "init"): this {
-    this.snap(narration, line, op);
+  note(narration: string, line: Line, op: StepOp = "init", why?: string): this {
+    this.snap(narration, line, op, why);
     return this;
   }
 
-  scan(i: number, line: Line): this {
+  scan(i: number, line: Line, narration?: string, why?: string): this {
     this.pointer = i;
     this.input[i].state = "active";
     this.lookupKey = undefined;
-    this.snap(`Look at nums[${i}] = ${this.input[i].value}`, line, "visit");
+    this.snap(narration ?? `Look at nums[${i}] = ${this.input[i].value}`, line, "visit", why);
     return this;
   }
 
-  lookup(need: number, line: Line): this {
+  lookup(need: number, line: Line, narration?: string, why?: string): this {
     this.lookupKey = String(need);
     const e = this.map.get(need);
     if (e) e.state = "compare";
-    this.snap(`Complement is ${need} — has ${need} been seen yet?`, line, "compare");
+    this.snap(narration ?? `Complement is ${need} — has ${need} been seen yet?`, line, "compare", why);
     return this;
   }
 
-  insert(key: number, value: number, line: Line): this {
+  insert(key: number, value: number, line: Line, narration?: string, why?: string): this {
     const id = `e${this.counter++}`;
     this.map.set(key, { value, state: "swap", id });
     this.order.push(key);
-    this.snap(`No — store ${key} → index ${value} for later`, line, "insert");
+    this.snap(narration ?? `No — store ${key} → index ${value} for later`, line, "insert", why);
     return this;
   }
 
-  found(jIndex: number, iIndex: number, key: number, line: Line): this {
+  found(jIndex: number, iIndex: number, key: number, line: Line, narration?: string, why?: string): this {
     this.pointer = iIndex;
     this.input[iIndex].state = "final";
     this.input[jIndex].state = "final";
     const e = this.map.get(key);
     if (e) e.state = "final";
     this.lookupKey = String(key);
-    this.snap(`Yes! nums[${jIndex}] + nums[${iIndex}] = target. Answer: [${jIndex}, ${iIndex}]`, line, "done");
+    this.snap(narration ?? `Yes! nums[${jIndex}] + nums[${iIndex}] = target. Answer: [${jIndex}, ${iIndex}]`, line, "done", why);
     return this;
   }
 
-  private snap(narration: string, line: Line, op?: StepOp): void {
+  private snap(narration: string, line: Line, op?: StepOp, why?: string): void {
     const codeLines = Array.isArray(line) ? line : [line];
     const entries: HashEntry[] = this.order.map((k) => {
       const e = this.map.get(k)!;
@@ -81,7 +81,7 @@ export class HashTracer extends BaseTracer {
       lookupKey: this.lookupKey,
       mapLabel: this.mapLabel,
     };
-    this.commit(scene, narration, codeLines, op, this.lookupKey ? { need: this.lookupKey } : undefined);
+    this.commit(scene, narration, codeLines, op, this.lookupKey ? { need: this.lookupKey } : undefined, why);
     for (const c of this.input) if (c.state === "active" || c.state === "compare") c.state = "visited";
     for (const [, e] of this.map) if (e.state === "swap" || e.state === "compare") e.state = "default";
   }
