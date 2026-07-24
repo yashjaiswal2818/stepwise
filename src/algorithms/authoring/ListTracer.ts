@@ -54,6 +54,15 @@ export class ListTracer extends BaseTracer {
     this.next.set(fromId, toId);
     return this;
   }
+  /** Mutate a node's value WITHOUT committing — mirrors ArrayTracer.setValue.
+   *  Exists so aliasing can be SHOWN, not asserted: the pointers lesson writes
+   *  through one road and reads through another, and the shared box itself must
+   *  visibly change. */
+  setValue(id: string, v: number | string): this {
+    const nd = this.nodes.find((x) => x.id === id);
+    if (nd) nd.value = v;
+    return this;
+  }
   nodeState(id: string, s: ElementState): this {
     const nd = this.nodes.find((x) => x.id === id);
     if (nd) nd.state = s;

@@ -31,6 +31,11 @@ const WHY_ENFORCED = new Set<string>([
   "two-sum",
   "reverse-linked-list",
   "lesson-arrays",
+  // Foundations units are born with whys — enforced from their first PR.
+  "lesson-data-and-algorithms",
+  "lesson-memory",
+  "lesson-pointers",
+  "lesson-growth",
 ]);
 
 function main(): void {

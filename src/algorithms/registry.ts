@@ -17,6 +17,10 @@ import { numberOfIslandsTrace } from "./graphs/number-of-islands";
 import { dijkstraTrace } from "./graphs/dijkstra";
 import { bfsDfsTrace } from "./graphs/bfs-dfs";
 import { whatIsAnArrayTrace } from "./lessons/arrays";
+import { dataAndAlgorithmsTrace } from "./lessons/data-and-algorithms";
+import { memoryTrace } from "./lessons/memory";
+import { pointersTrace } from "./lessons/pointers";
+import { growthTrace } from "./lessons/growth";
 
 export interface Dataset {
   id: string;
@@ -184,6 +188,28 @@ export const REGISTRY: Record<string, ExampleDef> = {
     id: "lesson-arrays",
     build: (ds) => whatIsAnArrayTrace([], ds.id),
     datasets: [{ id: "default", label: "What an array is", values: [] }],
+  },
+
+  // ---- Foundations units (Phase 0): pre-concept lessons, same contract.
+  "lesson-data-and-algorithms": {
+    id: "lesson-data-and-algorithms",
+    build: (ds) => dataAndAlgorithmsTrace([], ds.id),
+    datasets: [{ id: "default", label: "Data and instructions", values: [] }],
+  },
+  "lesson-memory": {
+    id: "lesson-memory",
+    build: (ds) => memoryTrace([], ds.id),
+    datasets: [{ id: "default", label: "Where data lives", values: [] }],
+  },
+  "lesson-pointers": {
+    id: "lesson-pointers",
+    build: (ds) => pointersTrace([], ds.id),
+    datasets: [{ id: "default", label: "Boxes and arrows", values: [] }],
+  },
+  "lesson-growth": {
+    id: "lesson-growth",
+    build: (ds) => growthTrace([], ds.id),
+    datasets: [{ id: "default", label: "How work grows", values: [] }],
   },
 };
 
